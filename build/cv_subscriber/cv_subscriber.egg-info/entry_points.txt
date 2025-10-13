@@ -1,0 +1,3 @@
+[console_scripts]
+dice_detector = cv_subscriber.dice_detector_node:main
+
