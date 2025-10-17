@@ -1,16 +1,12 @@
 <?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>custom_interface</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Custom ROS 2 messages, services, and actions for dice game.</description>
   <maintainer email="z5359327@ad.unsw.edu.au">mtrn</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
-
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
+  <depend>rosidl_default_generators</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
