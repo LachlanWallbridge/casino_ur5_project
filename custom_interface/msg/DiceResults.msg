@@ -1,0 +1,3 @@
+# DiceResults.msg
+
+DiceResult[] dice

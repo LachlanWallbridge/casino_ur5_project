@@ -9,6 +9,12 @@ find_package(geometry_msgs REQUIRED)
 # Generate messages
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/PickObject.action"
+  "srv/GetPlayerBets.srv"
+  "msg/Player.msg"
+  "msg/Players.msg"
+  "msg/DiceResult.msg"
+  "msg/DiceResults.msg"
+  "msg/PlayerBet.msg"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

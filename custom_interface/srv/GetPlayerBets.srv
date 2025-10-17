@@ -1,0 +1,11 @@
+# GetPlayerBets.srv
+
+# Request
+string[] player_ids
+
+---
+
+# Response
+PlayerBet[] player_bets
+
+
