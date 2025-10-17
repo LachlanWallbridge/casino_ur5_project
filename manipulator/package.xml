@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>manipulator</name>
+  <version>0.0.0</version>
+  <description>Manipulator package interfacing with UR5e using ROS 2 actions.</description>
+  <maintainer email="z5359327@ad.unsw.edu.au">mtrn</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>custom_interface</depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>custom_interface</name>
+  <version>0.0.0</version>
+  <description>Custom ROS 2 messages, services, and actions for dice game.</description>
+  <maintainer email="z5359327@ad.unsw.edu.au">mtrn</maintainer>
+  <license>MIT</license>
+
+  <depend>rosidl_default_generators</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
