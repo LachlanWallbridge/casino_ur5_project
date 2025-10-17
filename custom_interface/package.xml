@@ -2,11 +2,21 @@
 <package format="3">
   <name>custom_interface</name>
   <version>0.0.0</version>
-  <description>Custom ROS 2 messages, services, and actions for dice game.</description>
-  <maintainer email="z5359327@ad.unsw.edu.au">mtrn</maintainer>
+  <description>Custom messages, services, and actions for the UR5E dice-game robot, including player interactions and object manipulation.</description>
+  <maintainer email="z5359327@unsw.edu.au">Lachlan Wallbridge</maintainer>
   <license>MIT</license>
 
-  <depend>rosidl_default_generators</depend>
+  <!-- Build tools to generate interfaces -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <!-- Runtime dependencies -->
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <!-- Declare interface package -->
+  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <export>
     <build_type>ament_cmake</build_type>
