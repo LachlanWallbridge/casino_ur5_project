@@ -26,7 +26,7 @@ class DiceDetector(Node):
         # Subscribe to ROS 2 image topic
         self.subscription = self.create_subscription(
             Image,
-            "/camera/color/image_raw",  # Change this topic name if needed
+            "/camera/camera/color/image_raw",  # Change this topic name if needed
             self.image_callback,
             10,
         )
@@ -37,6 +37,12 @@ class DiceDetector(Node):
     def image_callback(self, msg):
         # Convert ROS Image message → OpenCV image
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+
+        # Crop region using numpy slicing: frame[y1:y2, x1:x2]
+        x1, y1 = 300, 100
+        x2, y2 = 1200, 500
+        cropped_frame = frame[y1:y2, x1:x2]
+        frame = cropped_frame       
 
         # Run YOLO inference
         detected_dice = self.model(frame)[0].boxes
