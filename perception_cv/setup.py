@@ -27,6 +27,7 @@ setup(
             'dice_cv = perception_cv.dice_cv.dice_node:main',
             'player_cv = perception_cv.player_cv.player_node:main',
             'cup_cv = perception_cv.cup_cv.cup_node:main',
+            'fake_camera = perception_cv.scripts.fake_camera:main',
         ],
     },
 )
