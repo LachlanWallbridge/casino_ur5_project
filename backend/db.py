@@ -22,55 +22,72 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-
+    return True  # Always succeeds
 
 def add_player(player_id: int, balance: float = 0.0):
     """Add a new player if not exists, with optional starting balance."""
     conn = get_conn()
     try:
-        conn.execute(
+        cursor = conn.execute(
             "INSERT OR IGNORE INTO players (player_id, balance) VALUES (?, ?)",
             (player_id, balance)
         )
         conn.commit()
+        return cursor.rowcount > 0  # True if inserted, False if ignored
     finally:
         conn.close()
 
 def remove_player(player_id: int):
     conn = get_conn()
-    conn.execute("DELETE FROM players WHERE player_id = ?", (player_id,))
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.execute("DELETE FROM players WHERE player_id = ?", (player_id,))
+        conn.commit()
+        return cursor.rowcount > 0  # True if a row was deleted
+    finally:
+        conn.close()
 
 def update_balance(player_id: int, amount: float):
     conn = get_conn()
-    conn.execute("UPDATE players SET balance = balance + ? WHERE player_id = ?", (amount, player_id))
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.execute(
+            "UPDATE players SET balance = balance + ? WHERE player_id = ?",
+            (amount, player_id)
+        )
+        conn.commit()
+        return cursor.rowcount > 0  # True if updated
+    finally:
+        conn.close()
 
 def record_game(player_id: int, won: bool = False):
     conn = get_conn()
-    if won:
-        conn.execute(
-            "UPDATE players SET games_played = games_played + 1, games_won = games_won + 1 WHERE player_id = ?",
-            (player_id,)
-        )
-    else:
-        conn.execute(
-            "UPDATE players SET games_played = games_played + 1 WHERE player_id = ?",
-            (player_id,)
-        )
-    conn.commit()
-    conn.close()
+    try:
+        if won:
+            cursor = conn.execute(
+                "UPDATE players SET games_played = games_played + 1, games_won = games_won + 1 WHERE player_id = ?",
+                (player_id,)
+            )
+        else:
+            cursor = conn.execute(
+                "UPDATE players SET games_played = games_played + 1 WHERE player_id = ?",
+                (player_id,)
+            )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
 
 def get_player(player_id: int):
     conn = get_conn()
-    row = conn.execute("SELECT * FROM players WHERE player_id = ?", (player_id,)).fetchone()
-    conn.close()
-    return dict(row) if row else None
+    try:
+        row = conn.execute("SELECT * FROM players WHERE player_id = ?", (player_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
 
 def get_all_players():
     conn = get_conn()
-    rows = conn.execute("SELECT * FROM players").fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+    try:
+        rows = conn.execute("SELECT * FROM players").fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()

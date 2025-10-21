@@ -1,4 +1,3 @@
-import typer
 import subprocess
 import threading
 from db import init_db
