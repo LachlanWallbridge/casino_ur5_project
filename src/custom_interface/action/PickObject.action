@@ -1,0 +1,16 @@
+# Request
+geometry_msgs/Point pick_location
+geometry_msgs/Point end_location
+float32 target_size
+
+---
+# Feedback
+float32 percentage
+string current_action
+
+---
+# Result
+bool success
+string message
+
+

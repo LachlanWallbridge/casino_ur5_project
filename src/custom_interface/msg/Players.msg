@@ -1,0 +1,3 @@
+# Players.msg
+
+Player[] players
