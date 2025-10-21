@@ -107,7 +107,7 @@ class ArucoDetector(Node):
     def warp_board(self, frame, board_points):
         """Warp the image to a 400x800mm top-down view."""
         try:
-            board_h_mm, board_w_mm = 400, 800
+            board_h_mm, board_w_mm = 390, 756
             dst_pts = np.array([
                 [0, 0],
                 [board_w_mm - 1, 0],
