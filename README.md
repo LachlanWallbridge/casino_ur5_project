@@ -1,2 +1,12 @@
 # MTRN4231_Project
 Ground project for MTRN4231 Robotics project
+
+
+
+## Requriements
+
+```bash
+pip install -r requirements.txt
+
+sudo apt install ros-humble-rosbridge-server
+```

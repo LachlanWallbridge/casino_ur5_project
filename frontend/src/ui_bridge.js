@@ -1,17 +1,29 @@
 // frontend/src/ui_bridge.js
-// Stub ROS2 bridge; replace with real ROS2 subscription later
+import ROSLIB from 'roslib';
+
+let ros = null;
+
 export function subscribeToPlayers(callback) {
-    // Example: simulate Players.msg coming in
-    let playersMsg = [
-        { player_id: "100", position: 1 },
-        { player_id: "151", position: 2 },
-        { player_id: "200", position: 3 }
-    ];
+    if (!ros) {
+        ros = new ROSLIB.Ros({
+            url: 'ws://localhost:9090'
+        });
 
-    const interval = setInterval(() => {
-        // You could shuffle positions or simulate joins/leaves
-        callback(playersMsg);
-    }, 2000);
+        ros.on('connection', () => console.log('Connected to ROS2 WebSocket'));
+        ros.on('error', (err) => console.error('ROS2 connection error', err));
+        ros.on('close', () => console.log('ROS2 connection closed'));
+    }
 
-    return () => clearInterval(interval); // unsubscribe
+    const listener = new ROSLIB.Topic({
+        ros,
+        name: '/players',       // ROS2 topic for Players.msg
+        messageType: 'custom_interface/msg/Players'
+    });
+
+    listener.subscribe((msg) => {
+        // msg.players is the array from Players.msg
+        callback(msg.players);
+    });
+
+    return () => listener.unsubscribe(); // cleanup
 }
