@@ -3,11 +3,15 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
-
 from custom_interface.msg import Player, Players
-from std_msgs.msg import Float64MultiArray, Int32MultiArray
+from geometry_msgs.msg import TransformStamped, Point
+import tf2_ros
+from tf_transformations import quaternion_from_euler
+
+# Import the reusable static broadcaster
+from perception_cv import broadcast_camera_to_world
 
 
 class ArucoDetector(Node):
@@ -15,177 +19,193 @@ class ArucoDetector(Node):
         super().__init__('aruco_detector')
 
         # ---- Parameters ----
-        self.declare_parameter('camera_topic', '/camera/camera/color/image_raw')
+        self.declare_parameter('color_topic', '/camera/camera/color/image_raw')
+        self.declare_parameter('depth_topic', '/camera/camera/aligned_depth_to_color/image_raw')
         self.declare_parameter('show_image', True)
         self.show_image = self.get_parameter('show_image').get_parameter_value().bool_value
 
-        # ---- CV + ArUco setup ----
+        # ---- CV / ArUco ----
         self.bridge = CvBridge()
         self.dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.dictionary, self.parameters)
 
-        # ---- ROS I/O ----
-        self.subscription = self.create_subscription(
-            Image,
-            self.get_parameter('camera_topic').get_parameter_value().string_value,
-            self.image_callback,
+        # ---- Subscribers ----
+        color_topic = self.get_parameter('color_topic').get_parameter_value().string_value
+        depth_topic = self.get_parameter('depth_topic').get_parameter_value().string_value
+
+        self.color_sub = self.create_subscription(Image, color_topic, self.color_callback, 10)
+        self.depth_sub = self.create_subscription(Image, depth_topic, self.depth_callback, 10)
+        self.camera_info_sub = self.create_subscription(
+            CameraInfo,
+            '/camera/camera/aligned_depth_to_color/camera_info',
+            self.camera_info_callback,
             10
         )
+
+        # ---- Publishers ----
         self.players_pub = self.create_publisher(Players, 'players', 10)
         self.warped_pub = self.create_publisher(Image, 'board/warped_image', 10)
-        self.warp_matrix_pub = self.create_publisher(Float64MultiArray, 'board/warp_matrix', 10)
-        self.warp_size_pub = self.create_publisher(Int32MultiArray, 'board/warp_size', 10)
 
-        self.get_logger().info('✅ ArUco detector node started.')
+        # ---- TF broadcasters ----
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
-    # ----------------------------------------------------------
-    def image_callback(self, msg):
-        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        # ---- Broadcast static camera → world ----
+        broadcast_camera_to_world(self)
+
+        # ---- State ----
+        self.latest_color = None
+        self.latest_depth = None
+        self.fx = self.fy = self.cx = self.cy = None
+
+        self.get_logger().info("✅ ArUco detector node started.")
+
+    # ------------------------------
+    def camera_info_callback(self, msg: CameraInfo):
+        self.fx = msg.k[0]
+        self.fy = msg.k[4]
+        self.cx = msg.k[2]
+        self.cy = msg.k[5]
+
+    def color_callback(self, msg: Image):
+        self.latest_color = msg
+        self.try_process_frame()
+
+    def depth_callback(self, msg: Image):
+        self.latest_depth = msg
+        self.try_process_frame()
+
+    # ------------------------------
+    def try_process_frame(self):
+        if self.latest_color is None or self.latest_depth is None:
+            return
+        if None in [self.fx, self.fy, self.cx, self.cy]:
+            return
+
+        color_msg = self.latest_color
+        depth_msg = self.latest_depth
+        frame = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='bgr8')
+        depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough').astype(np.float32) / 1000.0  # mm → m
+
         corners, ids, _ = self.detector.detectMarkers(frame)
-
         players_msg = Players()
 
         if ids is not None:
             ids = ids.flatten()
-
-            # --- Draw markers for visual debugging ---
             cv2.aruco.drawDetectedMarkers(frame, corners)
 
+            # Draw marker IDs
             for i, marker_id in enumerate(ids):
                 c = corners[i][0]
-                center = tuple(c.mean(axis=0).astype(int))  # compute center of marker
-                cv2.putText(frame, str(marker_id), center, 
+                center_px = tuple(c.mean(axis=0).astype(int))
+                cv2.putText(frame, str(marker_id), center_px,
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
-            # --- Detect board corners (0–3) ---
-            board_points = self.get_board_corners(ids, corners)
-
-            # warp frame first
+            # Detect board corners (markers 0-3)
+            board_points = self.get_board_corners(ids, corners, depth_image)
             if len(board_points) == 4:
-                warped, H = self.warp_board(frame, board_points)
-                if H is not None:
+                # Broadcast dynamic board_frame
+                self.broadcast_board_frame(board_points, color_msg.header.stamp)
+
+                # Warp image for visualization
+                warped = self.warp_board(frame, board_points)
+                if warped is not None:
                     warped_msg = self.bridge.cv2_to_imgmsg(warped, encoding='bgr8')
-                    # Use the same timestamp as input image
-                    warped_msg.header.stamp = msg.header.stamp
+                    warped_msg.header.stamp = color_msg.header.stamp
                     self.warped_pub.publish(warped_msg)
                     if self.show_image:
                         cv2.imshow('Board Warped', warped)
 
-                    # Warp marker corners into top-down board frame
-                    for i, marker_id in enumerate(ids):
-                        if marker_id not in [0,1,2,3]:
-                            player_msg = Player()
-                            player_msg.player_id = str(marker_id)
+                # Process non-board markers as players
+                for i, marker_id in enumerate(ids):
+                    if marker_id not in [0, 1, 2, 3]:
+                        player_msg = Player()
+                        player_msg.player_id = str(marker_id)
+                        player_msg.position = self.get_marker_3d_position(corners[i][0], depth_image)
+                        players_msg.players.append(player_msg)
 
-                            src_pts = np.array(corners[i][0], dtype=np.float32)  # 4x2
-                            dst_pts = cv2.perspectiveTransform(src_pts[None, :, :], H)  # 1x4x2
-                            player_msg.position = self.map_marker_to_position(dst_pts[0])
-
-                            players_msg.players.append(player_msg)
-
-
-        # --- Publish players ---
+        # Publish players
         self.players_pub.publish(players_msg)
 
         if self.show_image:
             cv2.imshow('Aruco Detection', frame)
             cv2.waitKey(1)
 
-    # ----------------------------------------------------------
-    def get_board_corners(self, ids, corners):
-        """Extracts board corners using specific corners of markers 0-3."""
+    # ------------------------------
+    def get_board_corners(self, ids, corners, depth_image):
+        """Compute 3D camera-frame positions of the board markers (0-3)."""
         board_pts = {}
-
         for i, marker_id in enumerate(ids):
-            if marker_id == 0:      # top-left marker
-                # corners[i][0] order: [tl, tr, br, bl]
-                board_pts[0] = corners[i][0][0]  # top-left
-            elif marker_id == 1:    # top-right marker
-                board_pts[1] = corners[i][0][1]  # top-right
-            elif marker_id == 2:    # bottom-right marker
-                board_pts[2] = corners[i][0][2]  # bottom-right
-            elif marker_id == 3:    # bottom-left marker
-                board_pts[3] = corners[i][0][3]  # bottom-left
+            if marker_id in [0, 1, 2, 3]:
+                pts_3d = self.get_marker_3d_position(corners[i][0], depth_image)
+                if pts_3d is not None:
+                    board_pts[marker_id] = pts_3d
 
         if len(board_pts) != 4:
             return []
 
-        # Return in fixed order: top-left, top-right, bottom-right, bottom-left
-        return [board_pts[i] for i in range(4)]
+        # Order: top-left, top-right, bottom-right, bottom-left
+        return [board_pts[i] for i in [0, 1, 2, 3]]
 
+    # ------------------------------
+    def get_marker_3d_position(self, marker_corners, depth_image):
+        """Compute 3D camera-frame position of a marker by averaging its corners."""
+        points_3d = []
+        for corner in marker_corners:
+            u, v = int(corner[0]), int(corner[1])
+            z = depth_image[v, u]
+            if z == 0.0:
+                continue
+            x = (u - self.cx) * z / self.fx
+            y = (v - self.cy) * z / self.fy
+            points_3d.append((x, y, z))
+        if not points_3d:
+            return None
+        x, y, z = np.mean(points_3d, axis=0)
+        return Point(x=x, y=y, z=z)
 
-    # ----------------------------------------------------------
+    # ------------------------------
+    def broadcast_board_frame(self, board_points, stamp):
+        """Broadcast board_frame using averaged board marker positions."""
+        src = np.array([[p.x, p.y, p.z] for p in board_points])
+        center = np.mean(src, axis=0)
+
+        # Compute approximate yaw (rotation around Z)
+        vec_x = src[1] - src[0]  # top-left → top-right
+        yaw = np.arctan2(vec_x[1], vec_x[0])
+
+        q = quaternion_from_euler(0, 0, yaw)
+
+        t = TransformStamped()
+        t.header.stamp = stamp
+        t.header.frame_id = 'camera_frame'
+        t.child_frame_id = 'board_frame'
+        t.transform.translation.x = float(center[0])
+        t.transform.translation.y = float(center[1])
+        t.transform.translation.z = float(center[2])
+        t.transform.rotation.x = q[0]
+        t.transform.rotation.y = q[1]
+        t.transform.rotation.z = q[2]
+        t.transform.rotation.w = q[3]
+
+        self.tf_broadcaster.sendTransform(t)
+
+    # ------------------------------
     def warp_board(self, frame, board_points):
-        """Warp the image to a 400x800mm top-down view."""
+        """Warp the board to a top-down view for visualization (optional)."""
         try:
             board_h_mm, board_w_mm = 390, 756
-            dst_pts = np.array([
-                [0, 0],
-                [board_w_mm - 1, 0],
-                [board_w_mm - 1, board_h_mm - 1],
-                [0, board_h_mm - 1]
-            ], dtype=np.float32)
-            src_pts = np.array(board_points, dtype=np.float32)
+            dst_pts = np.array([[0, 0],
+                                [board_w_mm - 1, 0],
+                                [board_w_mm - 1, board_h_mm - 1],
+                                [0, board_h_mm - 1]], dtype=np.float32)
+            src_pts = np.array([[p.x * 1000, p.y * 1000] for p in board_points], dtype=np.float32)  # m → mm
             H, _ = cv2.findHomography(src_pts, dst_pts)
             warped = cv2.warpPerspective(frame, H, (int(board_w_mm), int(board_h_mm)))
-
-            # Publish warp matrix and size
-            H_msg = Float64MultiArray()
-            H_msg.data = H.flatten().tolist()
-            self.warp_matrix_pub.publish(H_msg)
-
-            size_msg = Int32MultiArray()
-            size_msg.data = [int(board_w_mm), int(board_h_mm)]
-            self.warp_size_pub.publish(size_msg)
-
-            return warped, H
+            return warped
         except Exception as e:
             self.get_logger().warn(f"warp_board failed: {e}")
-            return frame, None
-
-    # ----------------------------------------------------------
-    def map_marker_to_position(self, marker_corners: np.ndarray) -> int:
-        """
-        Map marker coordinates in the warped board image to a player area (1,2,3).
-
-        Parameters
-        ----------
-        marker_corners : np.ndarray
-            Array of shape (4,2) with the marker corner coordinates in the warped image.
-
-        Returns
-        -------
-        int
-            Player position: 1, 2, or 3. Returns -1 if outside player area.
-        """
-
-        board_h_mm, board_w_mm = 400, 800  # same as warp
-        lower_half_y = board_h_mm / 2  # y threshold for lower half
-
-        # Compute marker center
-        center = np.mean(marker_corners, axis=0)
-        x, y = center
-
-        # Check if marker is in the lower half
-        if y < lower_half_y:
-            return -1  # not in player area
-
-        # Define horizontal player area boundaries with 50px margin
-        x_start = 100
-        x_end = board_w_mm - 100
-        zone_width = (x_end - x_start) / 3
-
-        # Determine which zone the marker center falls into
-        if x < x_start or x > x_end:
-            return -1  # outside playable area
-        elif x < x_start + zone_width:
-            return 1
-        elif x < x_start + 2 * zone_width:
-            return 2
-        else:
-            return 3
-
+            return None
 
 
 def main(args=None):

@@ -13,7 +13,6 @@ import tf2_ros
 import tf2_geometry_msgs
 from geometry_msgs.msg import Pose, Point, Quaternion
 from custom_interface.msg import DiceResult, DiceResults
-from perception_cv import broadcast_camera_to_world
 from geometry_msgs.msg import PointStamped, PoseStamped
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -71,14 +70,7 @@ class DiceDetector(Node):
         # Publicher for visualization markers
         self.marker_pub = self.create_publisher(MarkerArray, 'dice_markers', 10)
 
-        # TF broadcaster / listener
-        self.tf_broadcaster = broadcast_camera_to_world(
-            self,
-            translation=(1.0, 0.6, 0.9),
-            euler_rotation=(-np.pi/2, 0, 0),
-            parent_frame='world',
-            child_frame='camera_frame'
-        )
+    
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
