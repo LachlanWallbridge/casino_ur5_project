@@ -7,6 +7,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 from custom_interface.msg import Player, Players
+from std_msgs.msg import Float64MultiArray, Int32MultiArray
 
 
 class ArucoDetector(Node):
@@ -33,6 +34,8 @@ class ArucoDetector(Node):
         )
         self.players_pub = self.create_publisher(Players, 'players', 10)
         self.warped_pub = self.create_publisher(Image, 'board/warped_image', 10)
+        self.warp_matrix_pub = self.create_publisher(Float64MultiArray, 'board/warp_matrix', 10)
+        self.warp_size_pub = self.create_publisher(Int32MultiArray, 'board/warp_size', 10)
 
         self.get_logger().info('✅ ArUco detector node started.')
 
@@ -63,6 +66,8 @@ class ArucoDetector(Node):
                 warped, H = self.warp_board(frame, board_points)
                 if H is not None:
                     warped_msg = self.bridge.cv2_to_imgmsg(warped, encoding='bgr8')
+                    # Use the same timestamp as input image
+                    warped_msg.header.stamp = msg.header.stamp
                     self.warped_pub.publish(warped_msg)
                     if self.show_image:
                         cv2.imshow('Board Warped', warped)
@@ -89,19 +94,26 @@ class ArucoDetector(Node):
 
     # ----------------------------------------------------------
     def get_board_corners(self, ids, corners):
-        """Extracts corner centers for markers 0-3."""
+        """Extracts board corners using specific corners of markers 0-3."""
         board_pts = {}
+
         for i, marker_id in enumerate(ids):
-            if marker_id in [0, 1, 2, 3]:
-                c = corners[i][0]
-                center = np.mean(c, axis=0)
-                board_pts[marker_id] = center
+            if marker_id == 0:      # top-left marker
+                # corners[i][0] order: [tl, tr, br, bl]
+                board_pts[0] = corners[i][0][0]  # top-left
+            elif marker_id == 1:    # top-right marker
+                board_pts[1] = corners[i][0][1]  # top-right
+            elif marker_id == 2:    # bottom-right marker
+                board_pts[2] = corners[i][0][2]  # bottom-right
+            elif marker_id == 3:    # bottom-left marker
+                board_pts[3] = corners[i][0][3]  # bottom-left
 
         if len(board_pts) != 4:
             return []
 
         # Return in fixed order: top-left, top-right, bottom-right, bottom-left
         return [board_pts[i] for i in range(4)]
+
 
     # ----------------------------------------------------------
     def warp_board(self, frame, board_points):
@@ -117,6 +129,16 @@ class ArucoDetector(Node):
             src_pts = np.array(board_points, dtype=np.float32)
             H, _ = cv2.findHomography(src_pts, dst_pts)
             warped = cv2.warpPerspective(frame, H, (int(board_w_mm), int(board_h_mm)))
+
+            # Publish warp matrix and size
+            H_msg = Float64MultiArray()
+            H_msg.data = H.flatten().tolist()
+            self.warp_matrix_pub.publish(H_msg)
+
+            size_msg = Int32MultiArray()
+            size_msg.data = [int(board_w_mm), int(board_h_mm)]
+            self.warp_size_pub.publish(size_msg)
+
             return warped, H
         except Exception as e:
             self.get_logger().warn(f"warp_board failed: {e}")
@@ -150,8 +172,8 @@ class ArucoDetector(Node):
             return -1  # not in player area
 
         # Define horizontal player area boundaries with 50px margin
-        x_start = 50
-        x_end = board_w_mm - 50
+        x_start = 100
+        x_end = board_w_mm - 100
         zone_width = (x_end - x_start) / 3
 
         # Determine which zone the marker center falls into
