@@ -11,4 +11,6 @@ pip install -r requirements.txt
 sudo apt install ros-humble-rosbridge-server
 
 sudo apt install ros-humble-message-filters
+
+sudo apt install ros-humble-tf-transformations
 ```
