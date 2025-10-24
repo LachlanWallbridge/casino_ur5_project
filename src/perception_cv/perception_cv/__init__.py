@@ -1,9 +1,10 @@
 import rclpy
 from rclpy.node import Node
-import numpy as np
 import tf2_ros
-import geometry_msgs.msg
 import tf_transformations
+import numpy as np
+import tf2_geometry_msgs
+from geometry_msgs.msg import TransformStamped, PointStamped
 
 
 def broadcast_camera_to_world(node: Node,
@@ -17,7 +18,7 @@ def broadcast_camera_to_world(node: Node,
     """
     tf_broadcaster = tf2_ros.StaticTransformBroadcaster(node)
 
-    t = geometry_msgs.msg.TransformStamped()
+    t = TransformStamped()
     t.header.stamp = node.get_clock().now().to_msg()
     t.header.frame_id = parent_frame
     t.child_frame_id = child_frame
@@ -34,3 +35,57 @@ def broadcast_camera_to_world(node: Node,
 
     tf_broadcaster.sendTransform(t)
     return tf_broadcaster
+
+# 1 pixel = 1 mm = 0.001 m
+PIXEL_TO_METERS = 0.001
+
+def pixel_to_board_coords(x_px: float, y_px: float, img_w: int, img_h: int, z_offset: float):
+    """
+    Convert pixel coordinates (x_px, y_px) in the warped board image to board frame (meters).
+    The board frame origin is at the image center, with:
+      +X → right, +Y → up (note inverted OpenCV Y), +Z → normal to board.
+    """
+    x_board_m = (x_px - img_w / 2.0) * PIXEL_TO_METERS
+    y_board_m = -(y_px - img_h / 2.0) * PIXEL_TO_METERS  # Flip Y to make up positive
+    z_board_m = z_offset
+
+    return x_board_m, y_board_m, z_board_m
+
+
+def pixel_to_world_pose(
+    tf_buffer: tf2_ros.Buffer,
+    x_px: float,
+    y_px: float,
+    z_offset: float,
+    img_w: int,
+    img_h: int,
+    source_frame: str = "board_frame",
+    target_frame: str = "world",
+    timeout_s: float = 0.5,
+    node=None
+):
+    """
+    Converts pixel coordinates in the warped board image into a 3D world pose.
+
+    Returns a PointStamped in the world frame if transform available,
+    otherwise falls back to the board frame.
+    """
+    bx, by, bz = pixel_to_board_coords(x_px, y_px, img_w, img_h, z_offset)
+
+    point_board = PointStamped()
+    point_board.header.frame_id = source_frame
+    if node:
+        point_board.header.stamp = node.get_clock().now().to_msg()
+    point_board.point.x = bx
+    point_board.point.y = by
+    point_board.point.z = bz
+
+    try:
+        point_world = tf_buffer.transform(
+            point_board, target_frame, timeout=rclpy.duration.Duration(seconds=timeout_s)
+        )
+        return point_world
+    except Exception as e:
+        if node:
+            node.get_logger().warn(f"⚠️ TF transform failed: {e}")
+        return point_board

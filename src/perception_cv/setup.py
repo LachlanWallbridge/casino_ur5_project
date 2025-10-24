@@ -28,6 +28,7 @@ setup(
             'player_cv = perception_cv.player_cv.player_node:main',
             'cup_cv = perception_cv.cup_cv.cup_node:main',
             'fake_camera = perception_cv.scripts.fake_camera:main',
+            'aruco_detector_sim = perception_cv.aruco_cv.aruco_detector_sim:main',
         ],
     },
 )
