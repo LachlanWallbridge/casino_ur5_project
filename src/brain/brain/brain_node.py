@@ -102,8 +102,9 @@ class Brain(Node):
             return
 
         # Return home
-        home_pose = [0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 1.0]
-        if not self.call_move_service('cartesian', home_pose, '0'):
+        # ros2 service call /moveit_path_plan custom_interface/srv/MovementRequest "{command: 'joint', positions: [-1.3, 1.57, -1.83, -1.57, 0, 0], constraints_identifier: '0'}
+        positions = [-1.3, 1.57, -1.83, -1.57, 0, 0]
+        if not self.call_move_service('joint', positions, '0'):
             self.get_logger().warn("Return to home failed.")
 
         self.get_logger().info("Pickup complete.")
