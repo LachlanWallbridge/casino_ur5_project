@@ -5,11 +5,11 @@ import tf_transformations
 import numpy as np
 import tf2_geometry_msgs
 from geometry_msgs.msg import TransformStamped, PointStamped
-
+import math
 
 def broadcast_camera_to_world(node: Node,
                               translation=(1.0, 0.6, 0.9),
-                              euler_rotation=(0, 0, 0),
+                              euler_rotation=(0, 0, math.pi),
                               parent_frame='world',
                               child_frame='camera_frame'):
     """

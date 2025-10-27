@@ -41,6 +41,7 @@ log/
 .ros2bag
 .rviz
 .rviz2
+bags/
 
 # ------------------
 # OS / IDE

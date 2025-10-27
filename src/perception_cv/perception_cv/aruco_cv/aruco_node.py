@@ -58,7 +58,7 @@ class ArucoDetector(Node):
         self.latest_depth = None
         self.fx = self.fy = self.cx = self.cy = None
 
-        self.get_logger().info("✅ ArUco detector node started.")
+        self.get_logger().info("ArUco detector node started.")
 
     # ------------------------------
     def camera_info_callback(self, msg: CameraInfo):
@@ -85,7 +85,7 @@ class ArucoDetector(Node):
         color_msg = self.latest_color
         depth_msg = self.latest_depth
         frame = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='bgr8')
-        depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough').astype(np.float32) / 1000.0  # mm → m
+        depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough').astype(np.float64) / 1000.0  # mm → m
 
         corners, ids, _ = self.detector.detectMarkers(frame)
         players_msg = Players()
@@ -103,25 +103,21 @@ class ArucoDetector(Node):
 
             # Detect board corners (markers 0-3)
             board_points = self.get_board_corners(ids, corners, depth_image)
+            board_points2D = self.get_board_corners2D(ids, corners)
             if len(board_points) == 4:
                 # Broadcast dynamic board_frame
                 self.broadcast_board_frame(board_points, color_msg.header.stamp)
 
+                # self.get_logger().info(f"Board detected with markers 0-3. {board_points}")
                 # Warp image for visualization
-                warped = self.warp_board(frame, board_points)
-                if warped is not None:
-                    warped_msg = self.bridge.cv2_to_imgmsg(warped, encoding='bgr8')
-                    warped_msg.header.stamp = color_msg.header.stamp
-                    self.warped_pub.publish(warped_msg)
-                    if self.show_image:
-                        cv2.imshow('Board Warped', warped)
+                self.publish_warped_board(frame, board_points2D, color_msg.header.stamp)
 
                 # Process non-board markers as players
                 for i, marker_id in enumerate(ids):
                     if marker_id not in [0, 1, 2, 3]:
                         player_msg = Player()
                         player_msg.player_id = str(marker_id)
-                        player_msg.position = self.get_marker_3d_position(corners[i][0], depth_image)
+                        player_msg.position = 1
                         players_msg.players.append(player_msg)
 
         # Publish players
@@ -144,6 +140,19 @@ class ArucoDetector(Node):
         if len(board_pts) != 4:
             return []
 
+        # Order: top-left, top-right, bottom-right, bottom-left
+        return [board_pts[i] for i in [0, 1, 2, 3]]
+
+    def get_board_corners2D(self, ids, corners):
+        """Collect ArUco marker corners (IDs 0-3) for warp."""
+        board_pts = {}
+        for i, marker_id in enumerate(ids):
+            if marker_id in [0, 1, 2, 3]:
+                # Average corner positions
+                c = corners[i][0]
+                board_pts[marker_id] = np.mean(c, axis=0)
+        if len(board_pts) != 4:
+            return []
         # Order: top-left, top-right, bottom-right, bottom-left
         return [board_pts[i] for i in [0, 1, 2, 3]]
 
@@ -182,7 +191,7 @@ class ArucoDetector(Node):
         t.child_frame_id = 'board_frame'
         t.transform.translation.x = float(center[0])
         t.transform.translation.y = float(center[1])
-        t.transform.translation.z = float(center[2])
+        t.transform.translation.z = float(center[2]) * -1.0
         t.transform.rotation.x = q[0]
         t.transform.rotation.y = q[1]
         t.transform.rotation.z = q[2]
@@ -191,21 +200,26 @@ class ArucoDetector(Node):
         self.tf_broadcaster.sendTransform(t)
 
     # ------------------------------
-    def warp_board(self, frame, board_points):
-        """Warp the board to a top-down view for visualization (optional)."""
+    def publish_warped_board(self, frame, board_points, stamp):
+        """Warp board to top-down using detected ArUco corners."""
         try:
-            board_h_mm, board_w_mm = 390, 756
+            board_h_mm, board_w_mm = 390, 765
+            src_pts = np.array(board_points, dtype=np.float32)
             dst_pts = np.array([[0, 0],
                                 [board_w_mm - 1, 0],
                                 [board_w_mm - 1, board_h_mm - 1],
                                 [0, board_h_mm - 1]], dtype=np.float32)
-            src_pts = np.array([[p.x * 1000, p.y * 1000] for p in board_points], dtype=np.float32)  # m → mm
             H, _ = cv2.findHomography(src_pts, dst_pts)
             warped = cv2.warpPerspective(frame, H, (int(board_w_mm), int(board_h_mm)))
-            return warped
+
+            warped_msg = self.bridge.cv2_to_imgmsg(warped, encoding='bgr8')
+            warped_msg.header.stamp = stamp
+            self.warped_pub.publish(warped_msg)
+
+            if self.show_image:
+                cv2.imshow('Board Warped', warped)
         except Exception as e:
             self.get_logger().warn(f"warp_board failed: {e}")
-            return None
 
 
 def main(args=None):
