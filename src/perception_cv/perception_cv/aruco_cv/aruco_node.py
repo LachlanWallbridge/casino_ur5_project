@@ -6,87 +6,74 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
 from custom_interface.msg import Player, Players
-from geometry_msgs.msg import TransformStamped, Point
+from geometry_msgs.msg import TransformStamped, Quaternion
+from visualization_msgs.msg import Marker, MarkerArray
 import tf2_ros
 from tf_transformations import quaternion_from_euler
+import math
 
-# Import the reusable static broadcaster
-from perception_cv import broadcast_camera_to_world
-
+# Reusable helper (defines static camera→world TF and constant height)
+from perception_cv import broadcast_camera_to_world, pixel_to_board_coords, CAM_HEIGHT_M, BOARD_H_MM, BOARD_W_MM, BOARD_W_MM
 
 class ArucoDetector(Node):
     def __init__(self):
         super().__init__('aruco_detector')
+        self.process_every_n = 15   # process 1 out of every 5 frames
+        self.frame_count = 0
 
-        # ---- Parameters ----
+        # --- Parameters ---
         self.declare_parameter('color_topic', '/camera/camera/color/image_raw')
-        self.declare_parameter('depth_topic', '/camera/camera/aligned_depth_to_color/image_raw')
         self.declare_parameter('show_image', True)
         self.show_image = self.get_parameter('show_image').get_parameter_value().bool_value
 
-        # ---- CV / ArUco ----
+        # --- ArUco Setup ---
         self.bridge = CvBridge()
         self.dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.dictionary, self.parameters)
 
-        # ---- Subscribers ----
+        # --- Subscribers ---
         color_topic = self.get_parameter('color_topic').get_parameter_value().string_value
-        depth_topic = self.get_parameter('depth_topic').get_parameter_value().string_value
+        self.color_sub = self.create_subscription(Image, color_topic, self.image_callback, 10)
+        self.camera_info_sub = self.create_subscription(CameraInfo,
+                                                        '/camera/camera/aligned_depth_to_color/camera_info',
+                                                        self.camera_info_callback, 10)
 
-        self.color_sub = self.create_subscription(Image, color_topic, self.color_callback, 10)
-        self.depth_sub = self.create_subscription(Image, depth_topic, self.depth_callback, 10)
-        self.camera_info_sub = self.create_subscription(
-            CameraInfo,
-            '/camera/camera/aligned_depth_to_color/camera_info',
-            self.camera_info_callback,
-            10
-        )
-
-        # ---- Publishers ----
+        # --- Publishers ---
         self.players_pub = self.create_publisher(Players, 'players', 10)
         self.warped_pub = self.create_publisher(Image, 'board/warped_image', 10)
+        self.marker_pub = self.create_publisher(MarkerArray, 'aruco_markers', 10)
 
-        # ---- TF broadcasters ----
+        # --- TF ---
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
-
-        # ---- Broadcast static camera → world ----
         broadcast_camera_to_world(self)
 
-        # ---- State ----
-        self.latest_color = None
-        self.latest_depth = None
+        # --- Intrinsics ---
         self.fx = self.fy = self.cx = self.cy = None
 
-        self.get_logger().info("ArUco detector node started.")
+        self.get_logger().info("✅ ArUco detector node started (no depth mode).")
 
-    # ------------------------------
+    # ----------------------------------------------------------
     def camera_info_callback(self, msg: CameraInfo):
-        self.fx = msg.k[0]
-        self.fy = msg.k[4]
-        self.cx = msg.k[2]
-        self.cy = msg.k[5]
+        self.fx, self.fy, self.cx, self.cy = msg.k[0], msg.k[4], msg.k[2], msg.k[5]
 
-    def color_callback(self, msg: Image):
-        self.latest_color = msg
-        self.try_process_frame()
-
-    def depth_callback(self, msg: Image):
-        self.latest_depth = msg
-        self.try_process_frame()
-
-    # ------------------------------
-    def try_process_frame(self):
-        if self.latest_color is None or self.latest_depth is None:
-            return
+    # ----------------------------------------------------------
+    def image_callback(self, msg: Image):
         if None in [self.fx, self.fy, self.cx, self.cy]:
             return
+        
+        # # --- Throttle processing ---
+        # self.frame_count += 1
+        # if self.frame_count % self.process_every_n != 0:
+        #     return  # skip this frame
 
-        color_msg = self.latest_color
-        depth_msg = self.latest_depth
-        frame = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='bgr8')
-        depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough').astype(np.float64) / 1000.0  # mm → m
+        # timestamp 
+        stamp_now = self.get_clock().now().to_msg()
 
+        # --- ArUco detection ---
+        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         corners, ids, _ = self.detector.detectMarkers(frame)
         players_msg = Players()
 
@@ -94,104 +81,109 @@ class ArucoDetector(Node):
             ids = ids.flatten()
             cv2.aruco.drawDetectedMarkers(frame, corners)
 
-            # Draw marker IDs
+            # Draw IDs on image
             for i, marker_id in enumerate(ids):
                 c = corners[i][0]
                 center_px = tuple(c.mean(axis=0).astype(int))
                 cv2.putText(frame, str(marker_id), center_px,
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
-            # Detect board corners (markers 0-3)
-            board_points = self.get_board_corners(ids, corners, depth_image)
-            board_points2D = self.get_board_corners2D(ids, corners)
-            if len(board_points) == 4:
-                # Broadcast dynamic board_frame
-                self.broadcast_board_frame(board_points, color_msg.header.stamp)
+            # Detect board (markers 0–3)
+            board_pts_2d = self.get_board_corners_2d(ids, corners)
+            if len(board_pts_2d) == 4:
+                self.broadcast_board_frame(board_pts_2d)
+                H = self.publish_warped_board(frame, board_pts_2d, stamp_now)
 
-                # self.get_logger().info(f"Board detected with markers 0-3. {board_points}")
-                # Warp image for visualization
-                self.publish_warped_board(frame, board_points2D, color_msg.header.stamp)
+                if H is not None:
+                    self.publish_aruco_markers(board_pts_2d, H, stamp_now)
 
-                # Process non-board markers as players
-                for i, marker_id in enumerate(ids):
-                    if marker_id not in [0, 1, 2, 3]:
-                        player_msg = Player()
-                        player_msg.player_id = str(marker_id)
-                        player_msg.position = 1
-                        players_msg.players.append(player_msg)
-
-        # Publish players
-        self.players_pub.publish(players_msg)
+                # Add non-board markers as players
+                for mid in ids:
+                    if mid not in [0, 1, 2, 3]:
+                        p = Player()
+                        p.player_id = str(mid)
+                        p.position = 1
+                        players_msg.players.append(p)
 
         if self.show_image:
-            cv2.imshow('Aruco Detection', frame)
+            cv2.imshow('ArUco Detection', frame)
             cv2.waitKey(1)
 
-    # ------------------------------
-    def get_board_corners(self, ids, corners, depth_image):
-        """Compute 3D camera-frame positions of the board markers (0-3)."""
+    # ----------------------------------------------------------
+    def get_board_corners_2d(self, ids, corners):
+        """Return ordered 2D corners for markers 0–3."""
         board_pts = {}
         for i, marker_id in enumerate(ids):
             if marker_id in [0, 1, 2, 3]:
-                pts_3d = self.get_marker_3d_position(corners[i][0], depth_image)
-                if pts_3d is not None:
-                    board_pts[marker_id] = pts_3d
-
-        if len(board_pts) != 4:
-            return []
-
-        # Order: top-left, top-right, bottom-right, bottom-left
-        return [board_pts[i] for i in [0, 1, 2, 3]]
-
-    def get_board_corners2D(self, ids, corners):
-        """Collect ArUco marker corners (IDs 0-3) for warp."""
-        board_pts = {}
-        for i, marker_id in enumerate(ids):
-            if marker_id in [0, 1, 2, 3]:
-                # Average corner positions
                 c = corners[i][0]
                 board_pts[marker_id] = np.mean(c, axis=0)
         if len(board_pts) != 4:
             return []
-        # Order: top-left, top-right, bottom-right, bottom-left
+        # Order: TL, TR, BR, BL
         return [board_pts[i] for i in [0, 1, 2, 3]]
 
-    # ------------------------------
-    def get_marker_3d_position(self, marker_corners, depth_image):
-        """Compute 3D camera-frame position of a marker by averaging its corners."""
-        points_3d = []
-        for corner in marker_corners:
-            u, v = int(corner[0]), int(corner[1])
-            z = depth_image[v, u]
-            if z == 0.0:
-                continue
-            x = (u - self.cx) * z / self.fx
-            y = (v - self.cy) * z / self.fy
-            points_3d.append((x, y, z))
-        if not points_3d:
-            return None
-        x, y, z = np.mean(points_3d, axis=0)
-        return Point(x=x, y=y, z=z)
+    # ----------------------------------------------------------
+    def broadcast_board_frame(self, board_points_2d):
+        """Compute board_frame pose using all four corners (robust yaw) and constant height."""
+        self.get_logger().debug("Broadcasting board_frame TF.")
 
-    # ------------------------------
-    def broadcast_board_frame(self, board_points, stamp):
-        """Broadcast board_frame using averaged board marker positions."""
-        src = np.array([[p.x, p.y, p.z] for p in board_points])
-        center = np.mean(src, axis=0)
+        if len(board_points_2d) != 4:
+            self.get_logger().warn("Insufficient board corners for TF broadcast.")
+            return
 
-        # Compute approximate yaw (rotation around Z)
-        vec_x = src[1] - src[0]  # top-left → top-right
-        yaw = np.arctan2(vec_x[1], vec_x[0])
+        # Board corners: [TL, TR, BR, BL] in pixel coordinates
+        pts = np.array(board_points_2d, dtype=float)
+        TL, TR, BR, BL = pts
 
-        q = quaternion_from_euler(0, 0, yaw)
+        # ===============================================================
+        #   Translation: board center (in meters)
+        # ===============================================================
+        center_px = np.mean(pts, axis=0)
+        u, v = center_px
+        z = CAM_HEIGHT_M
+        x_m = ((u - self.cx) * z) / self.fx 
+        y_m = ((v - self.cy) * z) / self.fy 
+
+        # ===============================================================
+        #   Orientation: use all 4 sides for a robust yaw
+        # ===============================================================
+        # Edge vectors (in image/pixel space)
+        v_top = TR - TL
+        v_bottom = BR - BL
+        v_left = BL - TL
+        v_right = BR - TR
+
+        # Average horizontal and vertical directions
+        avg_vec_x = (v_top + v_bottom) / 2.0
+        avg_vec_y = (v_left + v_right) / 2.0
+
+        # Normalize both
+        avg_vec_x /= np.linalg.norm(avg_vec_x)
+        avg_vec_y /= np.linalg.norm(avg_vec_y)
+
+        # Ensure a right-handed coordinate system (cross > 0)
+        cross = np.cross(avg_vec_x, avg_vec_y)
+        if cross < 0:
+            avg_vec_x = -avg_vec_x
+
+        # Compute yaw (camera y-down, so flip sign for world y-up)
+        yaw_cam = np.arctan2(avg_vec_x[1], avg_vec_x[0])
+        yaw_world = yaw_cam
+
+        # ===============================================================
+        #   Build and broadcast transform
+        # ===============================================================
+        q = quaternion_from_euler(math.pi, 0.0, yaw_world)
 
         t = TransformStamped()
-        t.header.stamp = stamp
+        t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = 'camera_frame'
         t.child_frame_id = 'board_frame'
-        t.transform.translation.x = float(center[0])
-        t.transform.translation.y = float(center[1])
-        t.transform.translation.z = float(center[2]) * -1.0
+
+        t.transform.translation.x = float(x_m)
+        t.transform.translation.y = float(y_m)  # flip to match world-up
+        t.transform.translation.z = float(CAM_HEIGHT_M)
+
         t.transform.rotation.x = q[0]
         t.transform.rotation.y = q[1]
         t.transform.rotation.z = q[2]
@@ -199,18 +191,65 @@ class ArucoDetector(Node):
 
         self.tf_broadcaster.sendTransform(t)
 
-    # ------------------------------
-    def publish_warped_board(self, frame, board_points, stamp):
-        """Warp board to top-down using detected ArUco corners."""
+
+    # ----------------------------------------------------------
+    def publish_warped_board(self, frame, board_points_2d, stamp):
+        """Warp board to top-down view for debugging (adds 50 mm border for ArUco tags)."""
         try:
-            board_h_mm, board_w_mm = 390, 765
-            src_pts = np.array(board_points, dtype=np.float32)
-            dst_pts = np.array([[0, 0],
-                                [board_w_mm - 1, 0],
-                                [board_w_mm - 1, board_h_mm - 1],
-                                [0, board_h_mm - 1]], dtype=np.float32)
-            H, _ = cv2.findHomography(src_pts, dst_pts)
-            warped = cv2.warpPerspective(frame, H, (int(board_w_mm), int(board_h_mm)))
+            # Physical board size (in mm)
+            
+            aruco_half_mm = 70.0  # 100 mm tags → 50 mm offset per side
+            # NOTE: slightly cutting off corners for some reason. Not sure why.
+
+            # Reason: We are using the vector lines of the edges to compute the offset,
+            # this means we can assume 1mm in pixel space is the same as 1mm in real world space
+
+            # Better approach: use the aruco top corner points instead of the centroids. 
+            # Would need to edit get_board_corners_2d to return all 4 corners per marker.
+
+            if len(board_points_2d) != 4:
+                self.get_logger().warn("Not enough board corners for warp.")
+                return
+
+            # Extract detected marker centers
+            tl, tr, br, bl = [np.array(p, dtype=np.float32) for p in board_points_2d]
+
+            # --- Apply outward 50 mm offsets ---
+            # Assume board coordinate order: TL(0), TR(1), BR(2), BL(3)
+            # Offsets in pixel space proportional to line directions
+            # Compute edge direction vectors
+            vec_top = tr - tl
+            vec_left = bl - tl
+            norm_top = vec_top / np.linalg.norm(vec_top)
+            norm_left = vec_left / np.linalg.norm(vec_left)
+
+            # Per-corner outward offset = combination of normalised top/left vectors
+            # For each corner: ±x (along top edge), ±y (along left edge)
+            offsets = {
+                'tl': -norm_top * aruco_half_mm - norm_left * aruco_half_mm,
+                'tr':  norm_top * aruco_half_mm - norm_left * aruco_half_mm,
+                'br':  norm_top * aruco_half_mm + norm_left * aruco_half_mm,
+                'bl': -norm_top * aruco_half_mm + norm_left * aruco_half_mm,
+            }
+
+            src = np.array([
+                tl + offsets['tl'],
+                tr + offsets['tr'],
+                br + offsets['br'],
+                bl + offsets['bl'],
+            ], dtype=np.float32)
+
+            # --- Destination points (include same margin in warp space) ---
+            dst = np.array([
+                [0, 0],
+                [BOARD_W_MM - 1, 0],
+                [BOARD_W_MM - 1, BOARD_H_MM - 1],
+                [0, BOARD_H_MM - 1]
+            ], dtype=np.float32)
+
+            # Compute homography and warp
+            H, _ = cv2.findHomography(src, dst)
+            warped = cv2.warpPerspective(frame, H, (int(BOARD_W_MM), int(BOARD_H_MM)))
 
             warped_msg = self.bridge.cv2_to_imgmsg(warped, encoding='bgr8')
             warped_msg.header.stamp = stamp
@@ -218,8 +257,80 @@ class ArucoDetector(Node):
 
             if self.show_image:
                 cv2.imshow('Board Warped', warped)
+            
+            return H
+
         except Exception as e:
-            self.get_logger().warn(f"warp_board failed: {e}")
+            self.get_logger().warn(f"Warp failed: {e}")
+
+
+    # ----------------------------------------------------------
+    def publish_aruco_markers(self, board_points_2d, H, stamp):
+        """
+        Publish ArUco detections (board corners) as RViz markers
+        in the board_frame using warped coordinates.
+        Expects ordered board_points_2d: [TL, TR, BR, BL].
+        """
+        if len(board_points_2d) != 4:
+            self.get_logger().warn("Not enough board points to publish markers.")
+            return
+
+        # Convert to shape (N,1,2) for cv2.perspectiveTransform
+        pts = np.array(board_points_2d, dtype=np.float32).reshape(-1, 1, 2)
+        warped_pts = cv2.perspectiveTransform(pts, H).reshape(-1, 2)
+
+        marker_array = MarkerArray()
+        img_h, img_w = 390, 765  # warped board size in pixels (same as warp)
+        label_order = ["TL", "TR", "BR", "BL"]
+
+        for i, (label, pt) in enumerate(zip(label_order, warped_pts)):
+            # self.get_logger().info(f"Marker {label} at pixel coords ({pt[0]:.1f}, {pt[1]:.1f})")
+            x_m, y_m, z_m = pixel_to_board_coords(
+                x_px=pt[0],
+                y_px=pt[1],
+                img_w=img_w,
+                img_h=img_h,
+                z_offset=0.0,
+            )
+            # self.get_logger().info(f"Marker {label} at board coords ({x_m:.3f}, {y_m:.3f}, {z_m:.3f})")
+
+            # Cube marker
+            cube = Marker()
+            cube.header.frame_id = "board_frame"
+            cube.header.stamp = stamp
+            cube.ns = "board_corners"
+            cube.id = i
+            cube.type = Marker.CUBE
+            cube.action = Marker.ADD
+            cube.pose.position.x = float(x_m)
+            cube.pose.position.y = float(y_m)
+            cube.pose.position.z = float(z_m)
+            cube.pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+            cube.scale.x = cube.scale.y = 0.1
+            cube.scale.z = 0.01
+            cube.color.r = 0.0
+            cube.color.g = 0.0
+            cube.color.b = 1.0
+            cube.color.a = 1.0
+            marker_array.markers.append(cube)
+
+            # Text label
+            text = Marker()
+            text.header.frame_id = "board_frame"
+            text.header.stamp = stamp
+            text.ns = "corner_text"
+            text.id = i + 100
+            text.type = Marker.TEXT_VIEW_FACING
+            text.action = Marker.ADD
+            text.pose.position.x = float(x_m)
+            text.pose.position.y = float(y_m)
+            text.pose.position.z = float(z_m + 0.05)
+            text.scale.z = 0.06
+            text.color.r = text.color.g = text.color.b = text.color.a = 1.0
+            text.text = label
+            marker_array.markers.append(text)
+
+        self.marker_pub.publish(marker_array)
 
 
 def main(args=None):

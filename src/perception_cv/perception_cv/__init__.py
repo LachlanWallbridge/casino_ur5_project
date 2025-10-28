@@ -7,9 +7,11 @@ import tf2_geometry_msgs
 from geometry_msgs.msg import TransformStamped, PointStamped
 import math
 
+CAM_HEIGHT_M = 0.9  # 0.9 meters height of camera above world frame
+
 def broadcast_camera_to_world(node: Node,
-                              translation=(1.0, 0.6, 0.9),
-                              euler_rotation=(0, 0, math.pi),
+                              translation=(1.0, 0.6, CAM_HEIGHT_M),
+                              euler_rotation=(math.pi, 0, math.pi),
                               parent_frame='world',
                               child_frame='camera_frame'):
     """
@@ -38,6 +40,8 @@ def broadcast_camera_to_world(node: Node,
 
 # 1 pixel = 1 mm = 0.001 m
 PIXEL_TO_METERS = 0.001
+BOARD_H_MM = 390
+BOARD_W_MM = 765
 
 def pixel_to_board_coords(x_px: float, y_px: float, img_w: int, img_h: int, z_offset: float):
     """
@@ -61,7 +65,7 @@ def pixel_to_world_pose(
     img_h: int,
     source_frame: str = "board_frame",
     target_frame: str = "world",
-    timeout_s: float = 0.5,
+    timeout_s: float = 2,
     node=None
 ):
     """
@@ -74,15 +78,17 @@ def pixel_to_world_pose(
 
     point_board = PointStamped()
     point_board.header.frame_id = source_frame
-    if node:
-        point_board.header.stamp = node.get_clock().now().to_msg()
+    point_board.header.stamp = rclpy.time.Time().to_msg()
     point_board.point.x = bx
     point_board.point.y = by
     point_board.point.z = bz
 
     try:
         point_world = tf_buffer.transform(
-            point_board, target_frame, timeout=rclpy.duration.Duration(seconds=timeout_s)
+            point_board,
+            target_frame,
+            timeout=rclpy.duration.Duration(seconds=timeout_s),
+            new_type=PointStamped,  # optional safeguard for strict typing
         )
         return point_world
     except Exception as e:
