@@ -40,7 +40,6 @@ class ArucoDetector(Node):
                                                         self.camera_info_callback, 10)
 
         # --- Publishers ---
-        self.players_pub = self.create_publisher(Players, 'players', 10)
         self.warped_pub = self.create_publisher(Image, 'board/warped_image', 10)
         self.marker_pub = self.create_publisher(MarkerArray, 'aruco_markers', 10)
 
@@ -97,13 +96,6 @@ class ArucoDetector(Node):
                 if H is not None:
                     self.publish_aruco_markers(board_pts_2d, H, stamp_now)
 
-                # Add non-board markers as players
-                for mid in ids:
-                    if mid not in [0, 1, 2, 3]:
-                        p = Player()
-                        p.player_id = str(mid)
-                        p.position = 1
-                        players_msg.players.append(p)
 
         if self.show_image:
             cv2.imshow('ArUco Detection', frame)
