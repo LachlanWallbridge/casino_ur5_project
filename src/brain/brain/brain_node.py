@@ -5,6 +5,7 @@ from rclpy.node import Node
 from custom_interface.msg import DiceResults
 from custom_interface.srv import MovementRequest
 from geometry_msgs.msg import Pose
+from tf_transformations import euler_from_quaternion
 
 
 class Brain(Node):
@@ -97,7 +98,21 @@ class Brain(Node):
             pose.orientation.z,
             pose.orientation.w,
         ]
-        if not self.call_move_service('cartesian', above_pose, '1'):
+
+        # Convert quaternion → Euler (roll, pitch, yaw)
+        roll, pitch, yaw = euler_from_quaternion(above_pose[3:])
+
+        # Final pose in x, y, z, r, p, y format
+        pose_rpy = [
+            above_pose[0],
+            above_pose[1],
+            above_pose[2],
+            roll,
+            pitch,
+            yaw,
+        ]
+
+        if not self.call_move_service('cartesian', pose_rpy, '1'):
             self.get_logger().warn("Move to dice (above) failed. Skipping.")
             return
 

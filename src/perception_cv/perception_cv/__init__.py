@@ -7,10 +7,10 @@ import tf2_geometry_msgs
 from geometry_msgs.msg import TransformStamped, PointStamped
 import math
 
-CAM_HEIGHT_M = 0.9  # 0.9 meters height of camera above world frame
+CAM_HEIGHT_M = 0.92  # 0.9 meters height of camera above world frame
 
 def broadcast_camera_to_world(node: Node,
-                              translation=(1.0, 0.6, CAM_HEIGHT_M),
+                              translation=(0.85, 0.04, CAM_HEIGHT_M),
                               euler_rotation=(math.pi, 0, math.pi),
                               parent_frame='world',
                               child_frame='camera_frame'):
@@ -94,4 +94,4 @@ def pixel_to_world_pose(
     except Exception as e:
         if node:
             node.get_logger().warn(f"⚠️ TF transform failed: {e}")
-        return point_board
+        return None

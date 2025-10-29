@@ -58,7 +58,7 @@ class PlayerDetector(Node):
             (pad_px + i * zone_width, pad_px + (i + 1) * zone_width)
             for i in range(3)
         ]
-        self.get_logger().info(f"Zone bounds (px): {zone_bounds}")
+        # self.get_logger().info(f"Zone bounds (px): {zone_bounds}")
 
         # --- ArUco detection ---
         corners, ids, _ = self.detector.detectMarkers(frame)

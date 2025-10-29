@@ -13,12 +13,13 @@ from custom_interface.msg import DiceResult, DiceResults
 from geometry_msgs.msg import Quaternion
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.time import Time
+import tf2_ros
 
-from perception_cv import pixel_to_board_coords, BOARD_W_MM, BOARD_H_MM, PIXEL_TO_METERS
+from perception_cv import pixel_to_board_coords, pixel_to_world_pose, BOARD_W_MM, BOARD_H_MM, PIXEL_TO_METERS
 
 WINDOW_NAME = "Dice Recognition"
 SECONDARY_COLOR = (0, 0, 255)
-DICE_HALF_HEIGHT = 0.03  # 30 mm height offset for board frame
+DICE_HALF_HEIGHT = 0.10  # 30 mm height offset for board frame
 
 
 class DiceDetector(Node):
@@ -42,6 +43,10 @@ class DiceDetector(Node):
         # --- Publishers ---
         self.dice_pub = self.create_publisher(DiceResults, "dice_results", 10)
         self.marker_pub = self.create_publisher(MarkerArray, "dice_markers", 10)
+
+        # -- Buffer --
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
         self.get_logger().info("🎲 Dice detector node started (cropped top-half mode + rotation).")
@@ -110,12 +115,21 @@ class DiceDetector(Node):
                 z_offset=DICE_HALF_HEIGHT
             )
 
-            self.get_logger().info(f"Dice board position: ({x_m:.3f}, {y_m:.3f}, {z_m:.3f}), yaw={math.degrees(yaw_rad):.1f}°")
+            point_world = pixel_to_world_pose(
+                tf_buffer=self.tf_buffer,
+                x_px=cx,
+                y_px=cy,
+                z_offset=DICE_HALF_HEIGHT,
+                img_w=img_w,
+                img_h=img_h,
+                node=self
+            )
 
-            # Draw detection (for visualization)
-            cv2.rectangle(frame_full, (x1, y1), (x2, y2), SECONDARY_COLOR, 2)
-            cv2.putText(frame_full, f"{dice_num}", (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.75, SECONDARY_COLOR, 2)
+            if point_world is None:
+                self.get_logger().warn("Skipping dice detection due to TF failure.")
+                continue
+
+            self.get_logger().info(f"Dice board position: ({x_m:.3f}, {y_m:.3f}, {z_m:.3f}), yaw={math.degrees(yaw_rad):.1f}°")
 
             # --- Build DiceResult ---
             dr = DiceResult()
@@ -125,12 +139,20 @@ class DiceDetector(Node):
             dr.height = y2 - y1
             dr.dice_number = dice_num
             dr.confidence = conf
-            dr.pose.position.x = x_m
-            dr.pose.position.y = y_m
-            dr.pose.position.z = z_m
+
+            # Use the world position directly
+            dr.pose.position.x = point_world.point.x
+            dr.pose.position.y = point_world.point.y
+            dr.pose.position.z = point_world.point.z
+
+            # Orientation from detected yaw
             dr.pose.orientation = Quaternion(
                 x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3])
             )
+
+            self.get_logger().info(f"Dice world position: ({dr.pose.position.x:.3f}, {dr.pose.position.y:.3f}, {dr.pose.position.z:.3f}), yaw={math.degrees(yaw_rad):.1f}°")
+
+
             dice_list.append(dr)
 
         # --- Publish results and markers ---
