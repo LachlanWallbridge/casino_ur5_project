@@ -8,7 +8,7 @@ import xacro
 def generate_launch_description():
 
     package_name = 'linear_gripper_visualiser'
-    xacro_path = 'urdf/linear_gripper.urdf.xacro'
+    xacro_path = 'urdf/ur_with_gripper.urdf.xacro'
     rviz_path = 'rviz/rviz.rviz'
 
 

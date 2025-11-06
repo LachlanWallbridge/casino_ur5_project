@@ -1,8 +1,14 @@
-<?xml version="1.0"?>
-<robot name="gripper">
+<?xml version="1.0" ?>
+<robot name="ur_with_gripper" xmlns:xacro="http://www.ros.org/wiki/xacro" >
 
-  <!-- Base -->
-  <link name="base">
+  <!-- UR5e robot arm -->
+  <!-- URDF won't build if following args aren't defined. -->
+  <xacro:arg name="name" default="ur5"/>
+  <xacro:arg name="ur_type" default="ur5"/>
+  <xacro:include filename="$(find ur_description)/urdf/ur.urdf.xacro"/>
+
+  <!-- end effector -->
+   <link name="rail_gripper_base_link">
     <visual>
       <geometry>
         <box size="0.0603 0.06 0.06"/>
@@ -43,7 +49,7 @@
 
   <!-- Right finger prismatic joint -->
   <joint name="right_finger_joint" type="prismatic">
-    <parent link="base"/>
+    <parent link="rail_gripper_base_link"/>
     <child link="right_finger"/>
     <origin xyz="0 0.004 0.0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
@@ -52,7 +58,7 @@
 
   <!-- Left finger prismatic joint (mimics right finger) -->
   <joint name="left_finger_joint" type="prismatic">
-    <parent link="base"/>
+    <parent link="rail_gripper_base_link"/>
     <child link="left_finger"/>
     <origin xyz="0 -0.004 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
@@ -60,4 +66,8 @@
     <mimic joint="right_finger_joint" multiplier="-1" offset="0"/>
   </joint>
 
+  <joint name="wrist_3_link_to_gripper_base" type="fixed">
+    <parent link="tool0"/>
+    <child link="rail_gripper_base_link"/>
+  </joint>
 </robot>
