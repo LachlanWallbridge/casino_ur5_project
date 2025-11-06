@@ -37,7 +37,7 @@ class GripperServer(Node):
                 response.message = f'Gripper set to width {request.width}'
             else:
                 response.success = False
-                response.message = f'Gripper command''
+                response.message = f'Gripper command'
                 
         except Exception as e:
             response.success = False
