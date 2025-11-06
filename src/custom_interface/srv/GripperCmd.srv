@@ -1,3 +1,4 @@
+#GripperCmd.srv
 int32 width
 ---
 bool success
