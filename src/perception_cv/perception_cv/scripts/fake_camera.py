@@ -10,20 +10,25 @@ class FakeCamera(Node):
     def __init__(self):
         super().__init__('fake_camera')
 
-        # Declare a ROS 2 parameter for the image path
-        self.declare_parameter('image_path', '/home/mtrn/MTRN4231_Project/images/contentimage_5F00_203314.png')
-        image_path = self.get_parameter('image_path').get_parameter_value().string_value
+        # Declare ROS 2 parameters
+        self.declare_parameter('image_path', '')
+        self.declare_parameter('topic', '/camera/camera/color/image_raw')
 
+        image_path = self.get_parameter('image_path').get_parameter_value().string_value
+        topic = self.get_parameter('topic').get_parameter_value().string_value
+
+        # Validate image path
         if not os.path.exists(image_path):
             self.get_logger().error(f"Image file does not exist: {image_path}")
             raise FileNotFoundError(f"Image file does not exist: {image_path}")
 
+        # Load image and setup publisher
         self.frame = cv2.imread(image_path)
-        self.pub = self.create_publisher(Image, '/camera/camera/color/image_raw', 10)
         self.bridge = CvBridge()
+        self.pub = self.create_publisher(Image, topic, 10)
         self.timer = self.create_timer(0.5, self.publish_image)  # 2 Hz
 
-        self.get_logger().info(f"Publishing image: {image_path}")
+        self.get_logger().info(f"Publishing image '{image_path}' to topic '{topic}'")
 
     def publish_image(self):
         msg = self.bridge.cv2_to_imgmsg(self.frame, encoding='bgr8')
@@ -32,9 +37,13 @@ class FakeCamera(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = FakeCamera()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
