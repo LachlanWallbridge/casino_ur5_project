@@ -52,8 +52,8 @@ public:
     move_group_->setGoalOrientationTolerance(node_->get_parameter("goal_orientation_tolerance").as_double());
     // move_group_->setPlannerId("RRTConnect");
     //move_group_->setPlannerId("BKPIECEkConfigDefault");
-    // move_group_->setPlannerId("TRRTkConfigDefault");
-    move_group_->setPlannerId("LBKPIECEkConfigDefault");
+    move_group_->setPlannerId("TRRTkConfigDefault");
+    // move_group_->setPlannerId("LBKPIECEkConfigDefault");
 
     service_ = node_->create_service<custom_interface::srv::MovementRequest>(
       "/moveit_path_plan",

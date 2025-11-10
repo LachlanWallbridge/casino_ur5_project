@@ -2,8 +2,10 @@
 import time
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionClient
 from custom_interface.msg import DiceResults
-from custom_interface.srv import MovementRequest, StartRound
+from custom_interface.srv import StartRound
+from custom_interface.action import Movement
 from geometry_msgs.msg import Pose
 from tf_transformations import euler_from_quaternion
 
@@ -12,10 +14,11 @@ class Brain(Node):
     def __init__(self):
         super().__init__('brain')
 
-        # ---- Clients ----
-        self.movement_client = self.create_client(MovementRequest, '/moveit_path_plan')
-        while not self.movement_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Waiting for Movement Service...')
+        # ---- Action Client ----
+        self.movement_action_client = ActionClient(self, Movement, '/moveit_path_plan')
+        self.get_logger().info('Waiting for MoveIt Action Server...')
+        self.movement_action_client.wait_for_server()
+        self.get_logger().info('✅ Connected to MoveIt Action Server.')
 
         # ---- Subscribers ----
         self.dice_subscription = self.create_subscription(
@@ -71,14 +74,11 @@ class Brain(Node):
 
     def _run_round_once(self):
         """Executes a single round (non-blocking via timer)."""
-        # Stop this timer immediately (we only need one tick)
         for timer in list(self.timers):
             if timer.callback == self._run_round_once:
                 timer.cancel()
 
         self.get_logger().info("Waiting for dice to appear...")
-
-        # TODO: ADD ROLLING CODE HERE
 
         # Wait up to 10 seconds for dice
         wait_time = 0.0
@@ -136,35 +136,58 @@ class Brain(Node):
         roll, pitch, yaw = euler_from_quaternion(above_pose[3:])
         pose_rpy = [above_pose[0], above_pose[1], above_pose[2], roll, pitch, yaw]
 
-        if not self.call_move_service('cartesian', pose_rpy, '1'):
+        if not self.call_move_action('cartesian', pose_rpy, '1'):
             self.get_logger().warn("Move to dice (above) failed. Skipping.")
             return
 
         # Return home
         positions = [-1.3, 1.57, -1.83, -1.57, 0, 0]
-        if not self.call_move_service('joint', positions, '0'):
+        if not self.call_move_action('joint', positions, '0'):
             self.get_logger().warn("Return to home failed.")
 
         self.get_logger().info("Pickup complete.")
 
     # ==============================================================
-    #   SERVICE CALL
+    #   ACTION CALL
     # ==============================================================
 
-    def call_move_service(self, command: str, positions: list, constraints_id: str) -> bool:
-        """Call the MoveIt path planning service."""
-        req = MovementRequest.Request()
-        req.command = command
-        req.positions = positions
-        req.constraints_identifier = constraints_id
+    def call_move_action(self, command: str, positions: list, constraints_id: str) -> bool:
+        """Send goal to MoveIt action server and wait for result."""
+        goal_msg = Movement.Goal()
+        goal_msg.command = command
+        goal_msg.positions = positions
+        goal_msg.constraints_identifier = constraints_id
 
-        future = self.movement_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        if future.result() is not None:
-            return future.result().success
-        else:
-            self.get_logger().error("Movement service call failed.")
+        self.get_logger().info(f"Sending MoveIt goal: {command} → {positions}")
+
+        # Send goal asynchronously
+        send_goal_future = self.movement_action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+
+        rclpy.spin_until_future_complete(self, send_goal_future)
+        goal_handle = send_goal_future.result()
+
+        if not goal_handle.accepted:
+            self.get_logger().error("Goal rejected by MoveIt action server.")
             return False
+
+        self.get_logger().info("Goal accepted. Waiting for result...")
+        get_result_future = goal_handle.get_result_async()
+        rclpy.spin_until_future_complete(self, get_result_future)
+        result = get_result_future.result().result
+
+        success = result.success
+        if success:
+            self.get_logger().info("✅ MoveIt action succeeded.")
+        else:
+            self.get_logger().warn("❌ MoveIt action failed.")
+        return success
+
+    def feedback_callback(self, feedback_msg):
+        feedback = feedback_msg.feedback
+        self.get_logger().info(f"[MoveIt Feedback] {feedback.status}")
 
 
 # ==============================================================
