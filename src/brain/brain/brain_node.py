@@ -3,7 +3,7 @@ import time
 import rclpy
 from rclpy.node import Node
 from custom_interface.msg import DiceResults
-from custom_interface.srv import MovementRequest
+from custom_interface.srv import MovementRequest, StartRound
 from geometry_msgs.msg import Pose
 from tf_transformations import euler_from_quaternion
 
@@ -25,54 +25,89 @@ class Brain(Node):
             10
         )
 
+        # ---- Services ----
+        self.start_round_srv = self.create_service(
+            StartRound, '/start_round', self.start_round_callback
+        )
+
+        # ---- State ----
         self.latest_dice = []
-        self.get_logger().info('Brain node started. Ready to orchestrate the game.')
+        self.round_active = False
+
+        self.get_logger().info('🧠 Brain node ready. Awaiting start_round calls.')
 
     # ==============================================================
-    #   CALLBACK
+    #   CALLBACKS
     # ==============================================================
 
     def dice_callback(self, msg: DiceResults):
         """Update list of currently detected dice."""
         self.latest_dice = msg.dice
 
+    def start_round_callback(self, request, response):
+        """Handle frontend 'Start Round' service calls."""
+        if not request.start:
+            response.accepted = False
+            response.message = "Start flag was false — ignoring request."
+            return response
+
+        if self.round_active:
+            response.accepted = False
+            response.message = "Round already in progress."
+            return response
+
+        self.round_active = True
+        self.get_logger().info("🎯 StartRound service received. Starting a new round...")
+        response.accepted = True
+        response.message = "Round started successfully."
+
+        # Run the round asynchronously
+        self.create_timer(0.1, self._run_round_once)
+        return response
+
     # ==============================================================
-    #   GAME LOOP
+    #   ROUND EXECUTION
     # ==============================================================
 
-    def run_game(self):
-        """Main orchestration loop."""
-        while rclpy.ok():
-            input("\nPress ENTER to start a new round...")
-            self.get_logger().info("Game started. Waiting for dice...")
+    def _run_round_once(self):
+        """Executes a single round (non-blocking via timer)."""
+        # Stop this timer immediately (we only need one tick)
+        for timer in list(self.timers):
+            if timer.callback == self._run_round_once:
+                timer.cancel()
 
-            # Wait for any dice to appear
-            while len(self.latest_dice) == 0 and rclpy.ok():
-                rclpy.spin_once(self, timeout_sec=0.2)
+        self.get_logger().info("Waiting for dice to appear...")
 
-            if not rclpy.ok():
-                break
+        # TODO: ADD ROLLING CODE HERE
 
-            # Evaluate the roll (sum of current dice)
-            dice = self.latest_dice
-            values = [d.dice_number for d in dice]
-            total = sum(values)
-            odd_even = "odd" if total % 2 else "even"
-            self.get_logger().info(f"Detected dice: {values} (Total={total}, {odd_even.upper()})")
+        # Wait up to 10 seconds for dice
+        wait_time = 0.0
+        while len(self.latest_dice) == 0 and wait_time < 10.0 and rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.2)
+            wait_time += 0.2
 
-            # Closed loop pickup: keep removing dice until none left
-            while rclpy.ok() and len(self.latest_dice) > 0:
-                rclpy.spin_once(self, timeout_sec=0.2)
+        if len(self.latest_dice) == 0:
+            self.get_logger().warn("No dice detected. Ending round.")
+            self.round_active = False
+            return
 
-                # Take first dice from current feed
-                current_dice = self.latest_dice[0]
-                self.pickup_dice(current_dice)
+        # Evaluate dice outcome
+        dice = self.latest_dice
+        values = [d.dice_number for d in dice]
+        total = sum(values)
+        odd_even = "odd" if total % 2 else "even"
+        self.get_logger().info(f"🎲 Dice rolled: {values} (Total={total}, {odd_even.upper()})")
 
-                # Wait briefly for arm to finish & detection to update
-                time.sleep(0.5)
-                rclpy.spin_once(self, timeout_sec=0.2)
+        # Closed-loop dice removal
+        while rclpy.ok() and len(self.latest_dice) > 0:
+            rclpy.spin_once(self, timeout_sec=0.2)
+            current_dice = self.latest_dice[0]
+            self.pickup_dice(current_dice)
+            time.sleep(0.5)
+            rclpy.spin_once(self, timeout_sec=0.2)
 
-            self.get_logger().info("All dice removed. Round complete.\n")
+        self.get_logger().info("✅ Round complete. All dice removed.")
+        self.round_active = False
 
     # ==============================================================
     #   DICE PICKUP ROUTINE
@@ -88,36 +123,24 @@ class Brain(Node):
             f"(confidence={dice_msg.confidence:.2f})"
         )
 
-        # Move above dice
         above_pose = [
             pose.position.x,
             pose.position.y,
-            pose.position.z + 0.05,  # 5 cm above
+            pose.position.z + 0.05,
             pose.orientation.x,
             pose.orientation.y,
             pose.orientation.z,
             pose.orientation.w,
         ]
 
-        # Convert quaternion → Euler (roll, pitch, yaw)
         roll, pitch, yaw = euler_from_quaternion(above_pose[3:])
-
-        # Final pose in x, y, z, r, p, y format
-        pose_rpy = [
-            above_pose[0],
-            above_pose[1],
-            above_pose[2],
-            roll,
-            pitch,
-            yaw,
-        ]
+        pose_rpy = [above_pose[0], above_pose[1], above_pose[2], roll, pitch, yaw]
 
         if not self.call_move_service('cartesian', pose_rpy, '1'):
             self.get_logger().warn("Move to dice (above) failed. Skipping.")
             return
 
         # Return home
-        # ros2 service call /moveit_path_plan custom_interface/srv/MovementRequest "{command: 'joint', positions: [-1.3, 1.57, -1.83, -1.57, 0, 0], constraints_identifier: '0'}
         positions = [-1.3, 1.57, -1.83, -1.57, 0, 0]
         if not self.call_move_service('joint', positions, '0'):
             self.get_logger().warn("Return to home failed.")
@@ -152,7 +175,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = Brain()
     try:
-        node.run_game()
+        rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:

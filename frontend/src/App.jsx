@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import Board from './Board';
-import PlayerCard from './PlayerCard';
+import CasinoDashboard from './CasinoDashboard';
 import { subscribeToPlayers } from './ui_bridge';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
     const [players, setPlayers] = useState([]);
@@ -11,7 +11,7 @@ function App() {
             // Sort by position
             const sorted = playersMsg.sort((a, b) => a.position - b.position);
 
-            // Fetch stats from backend for each player
+            // Fetch backend stats for each player
             const playersWithStats = await Promise.all(
                 sorted.map(async (p) => {
                     try {
@@ -31,18 +31,7 @@ function App() {
         return () => unsubscribe();
     }, []);
 
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'lightblue' }}>
-            <div style={{ flex: 3 }}>
-                <Board />
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', padding: '10px', background: '#f0f0f0' }}>
-                {players.map(player => (
-                    <PlayerCard key={player.player_id} player={player} />
-                ))}
-            </div>
-        </div>
-    );
+    return <CasinoDashboard players={players} />;
 }
 
 export default App;

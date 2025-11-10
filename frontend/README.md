@@ -35,3 +35,9 @@ npm start
 ```
 - The frontend dev server will run on http://localhost:3000.
 - Open your browser to this URL to see the board and player cards.
+
+### 3. Run rosbridge
+
+```bash
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+```
