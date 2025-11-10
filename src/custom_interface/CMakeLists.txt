@@ -20,6 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DiceResult.msg"
   "msg/DiceResults.msg"
   "msg/PlayerBet.msg"
+  "action/Movement.action"
   DEPENDENCIES std_msgs geometry_msgs
 )
 

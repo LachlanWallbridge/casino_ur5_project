@@ -51,8 +51,9 @@ public:
     move_group_->setGoalPositionTolerance(node_->get_parameter("goal_position_tolerance").as_double());
     move_group_->setGoalOrientationTolerance(node_->get_parameter("goal_orientation_tolerance").as_double());
     // move_group_->setPlannerId("RRTConnect");
-    // move_group_->setPlannerId("BKPIECEkConfigDefault");
-    move_group_->setPlannerId("TRRTkConfigDefault");
+    //move_group_->setPlannerId("BKPIECEkConfigDefault");
+    // move_group_->setPlannerId("TRRTkConfigDefault");
+    move_group_->setPlannerId("LBKPIECEkConfigDefault");
 
     service_ = node_->create_service<custom_interface::srv::MovementRequest>(
       "/moveit_path_plan",
@@ -97,6 +98,72 @@ public:
 		}
 
 		if (str_contains(constraint_str, WRIST_1)) {
+			moveit_msgs::msg::JointConstraint wrist_constraint;
+			wrist_constraint.joint_name = "wrist_1_joint";
+			
+			// Convert degrees to radians (-71° to -218°)
+			const double min_angle = 218.0 * M_PI / 180.0;  // ≈ -3.8048 radians
+			const double mid_angle = 144.5 * M_PI / 180.0;  // Midpoint (-144.5° ≈ -2.5220 rad)
+			const double max_angle = 71.0 * M_PI / 180.0;   // ≈ -1.2392 radians
+		
+			// Configure constraint
+			wrist_constraint.position = mid_angle;           // Center of range
+			wrist_constraint.tolerance_below = 1.7;
+			// wrist_constraint.tolerance_below = 0.01;
+			// wrist_constraint.tolerance_above = 0.01;
+			wrist_constraint.tolerance_above = 1.2828;
+			wrist_constraint.weight = 1.0;
+			
+			constraints.joint_constraints.push_back(wrist_constraint);
+		}
+
+    if (str_contains(constraint_str, FULL)) {
+      moveit_msgs::msg::JointConstraint elbow_constraint;
+			elbow_constraint.joint_name = "elbow_joint";
+			
+			// Convert degrees to radians
+			const double min_angle = 20.0 * M_PI / 180.0;   // 60° in radians (~1.0472)
+			const double max_angle = 150.0 * M_PI / 180.0;  // 150° in radians (~2.6179)
+			
+			// Calculate midpoint (105° which is between 60° and 150°)
+			const double midpoint = (min_angle + max_angle) / 2.0;  // ~1.8326 radians
+			
+			// Set constraints
+			elbow_constraint.position = midpoint;
+			elbow_constraint.tolerance_below = 1.0;  // ~0.7854 radians (45°)
+			elbow_constraint.tolerance_above = max_angle - midpoint;  // ~0.7854 radians (45°)
+			elbow_constraint.weight = 1.0;
+			
+			RCLCPP_INFO(node_->get_logger(), "elbow constraint implemented.");
+			
+			constraints.joint_constraints.push_back(elbow_constraint);
+
+    }
+
+    if (str_contains(constraint_str, FULL)) {
+      moveit_msgs::msg::JointConstraint shoulder_pan_constraint;
+			shoulder_pan_constraint.joint_name = "shoulder_pan_joint";
+			
+			// Convert degrees to radians
+			const double min_angle = -45.0 * M_PI / 180.0;   // 60° in radians (~1.0472)
+			const double max_angle = 90.0 * M_PI / 180.0;  // 150° in radians (~2.6179)
+			
+			// Calculate midpoint (105° which is between 60° and 150°)
+			const double midpoint = (min_angle + max_angle) / 2.0;  // ~1.8326 radians
+			
+			// Set constraints
+			shoulder_pan_constraint.position = midpoint;
+			shoulder_pan_constraint.tolerance_below = 1.0;  // ~0.7854 radians (45°)
+			shoulder_pan_constraint.tolerance_above = max_angle - midpoint;  // ~0.7854 radians (45°)
+			shoulder_pan_constraint.weight = 1.0;
+			
+			RCLCPP_INFO(node_->get_logger(), "eshoulder pan constraint implemented.");
+			
+			constraints.joint_constraints.push_back(shoulder_pan_constraint);
+
+    }
+
+    if (str_contains(constraint_str, FULL)) {
 			moveit_msgs::msg::JointConstraint wrist_constraint;
 			wrist_constraint.joint_name = "wrist_1_joint";
 			
@@ -213,10 +280,15 @@ public:
     std::string frame_id = "world";
     moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
 
-    planning_scene_interface.applyCollisionObject(generateCollisionObject(2.4, 0.04, 3.0, 0.70, -0.60, 0.5, frame_id, "backWall"));
-    planning_scene_interface.applyCollisionObject(generateCollisionObject(0.04, 2.4, 3.0, -0.55, 0.25, 0.8, frame_id, "sideWall"));
-    planning_scene_interface.applyCollisionObject(generateCollisionObject(3, 3, 0.01, 0.85, 0.25, -0.10, frame_id, "table"));
-    planning_scene_interface.applyCollisionObject(generateCollisionObject(2.4, 2.4, 0.04, 0.85, 0.25, 1.5, frame_id, "ceiling"));
+    // planning_scene_interface.applyCollisionObject(generateCollisionObject(2.4, 0.04, 3.0, 0.70, -0.60, 0.5, frame_id, "backWall"));
+    // planning_scene_interface.applyCollisionObject(generateCollisionObject(0.04, 2.4, 3.0, -0.3, 0.25, 0.8, frame_id, "sideWall"));
+    // planning_scene_interface.applyCollisionObject(generateCollisionObject(3, 3, 0.01, 0.85, 0.25, -0.10, frame_id, "table"));
+    // planning_scene_interface.applyCollisionObject(generateCollisionObject(2.4, 2.4, 0.04, 0.85, 0.25, 1.5, frame_id, "ceiling"));
+
+    planning_scene_interface.applyCollisionObject(generateCollisionObject(2.4, 0.04, 1.0, 0.85, -0.30, 0.5, frame_id, "backWall"));
+    planning_scene_interface.applyCollisionObject(generateCollisionObject(0.04, 1.2, 1.0, -0.30, 0.25, 0.5, frame_id, "sideWall"));
+    planning_scene_interface.applyCollisionObject(generateCollisionObject(2.4, 2.4, 0.01, 0.85, 0.25, 0.013, frame_id, "table"));
+    planning_scene_interface.applyCollisionObject(generateCollisionObject(2.4, 2.4, 0.04, 0.85, 0.25, 1.2, frame_id, "ceiling"));
   }
 
   auto generateCollisionObject(float sx, float sy, float sz, float x, float y, float z, const std::string& frame_id, const std::string& id) -> moveit_msgs::msg::CollisionObject {
@@ -298,7 +370,7 @@ private:
     moveit::planning_interface::MoveGroupInterface::Plan plan;
     bool success = false;
     int attempts = 0;
-    const int max_attempts = 1000;
+    const int max_attempts = 5;
     
     while (!success && attempts < max_attempts) {
         success = (move_group_->plan(plan) == moveit::core::MoveItErrorCode::SUCCESS);
@@ -339,6 +411,7 @@ private:
   const std::string ELBOW = "ELBOW";
   const std::string ORIEN = "ORIEN";
   const std::string WRIST_1= "WRIST1";
+  const std::string FULL = "FULL";
 };
 
 int main(int argc, char** argv)

@@ -14,6 +14,8 @@ find_package(geometry_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(custom_interface REQUIRED)
 find_package(ompl REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(tf2 REQUIRED)
 
 # --- Executable 1: main MoveIt planning server ---
 add_executable(moveit_path_planning_server
@@ -34,11 +36,17 @@ add_executable(cartesian_move_demo
   src/cartesian_move_demo.cpp
 )
 
+
+
 ament_target_dependencies(cartesian_move_demo
   rclcpp
   moveit_ros_planning_interface
   geometry_msgs
+  tf2
   tf2_geometry_msgs
+  tf2_eigen
+  custom_interface
+  ompl
 )
 
 # --- Install both executables ---
@@ -47,5 +55,8 @@ install(TARGETS
   cartesian_move_demo
   DESTINATION lib/${PROJECT_NAME}
 )
+
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch)
 
 ament_package()

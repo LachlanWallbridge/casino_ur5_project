@@ -1,0 +1,10 @@
+# Goal
+string command
+float64[] positions
+string constraints_identifier
+---
+# Result
+bool success
+---
+# Feedback
+string status
