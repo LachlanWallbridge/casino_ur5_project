@@ -502,6 +502,8 @@
 #include "custom_interface/action/movement.hpp"
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <moveit/trajectory_processing/iterative_time_parameterization.h>
+#include <moveit/robot_trajectory/robot_trajectory.h>
 
 class MoveitPathPlanningServer
 {
@@ -522,13 +524,14 @@ public:
     node_->declare_parameter("goal_joint_tolerance", 0.001);
     node_->declare_parameter("goal_position_tolerance", 0.001);
     node_->declare_parameter("goal_orientation_tolerance", 0.001);
-
     // Apply MoveIt parameters
     move_group_->setPlanningTime(node_->get_parameter("planning_time").as_double());
     move_group_->setGoalJointTolerance(node_->get_parameter("goal_joint_tolerance").as_double());
     move_group_->setGoalPositionTolerance(node_->get_parameter("goal_position_tolerance").as_double());
     move_group_->setGoalOrientationTolerance(node_->get_parameter("goal_orientation_tolerance").as_double());
     move_group_->setPlannerId("LBKPIECEkConfigDefault");
+    move_group_->setMaxVelocityScalingFactor(0.10);
+    move_group_->setMaxAccelerationScalingFactor(0.10);
 
     setupCollisionObjects();
 
@@ -547,7 +550,7 @@ private:
   rclcpp_action::Server<Movement>::SharedPtr action_server_;
   std::shared_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
   geometry_msgs::msg::Pose target_pose_;
-  double speed_scale_ = 0.075;
+  double speed_scale_ = 0.1;
 
   const std::string VER_ELBOW = "LEFT_ELBOW";
   const std::string ELBOW = "ELBOW";
@@ -705,20 +708,30 @@ private:
     waypoints.push_back(target_pose_);
 
     moveit_msgs::msg::RobotTrajectory trajectory;
-    double fraction = move_group_->computeCartesianPath(waypoints, 0.01, 0.0, trajectory, false);
+    double fraction = move_group_->computeCartesianPath(waypoints, 0.005, 0.0, trajectory, false);
 
     if (fraction < 0.90) {
       RCLCPP_ERROR(node_->get_logger(), "Cartesian Path failed: %.2f", fraction);
       return false;
     }
 
-    for (auto &point : trajectory.joint_trajectory.points) {
-      for (auto &v : point.velocities) v *= speed_scale_;
-      for (auto &a : point.accelerations) a *= speed_scale_ * speed_scale_;
-    }
+    // for (auto &point : trajectory.joint_trajectory.points) {
+    //   for (auto &v : point.velocities) v *= speed_scale_;
+    //   for (auto &a : point.accelerations) a *= speed_scale_;
+    // }
+
+    moveit_msgs::msg::RobotTrajectory trajectory_slow;
+    // add timing Note: you have to convert it to a RobotTrajectory Object (not message) and back
+    trajectory_processing::IterativeParabolicTimeParameterization iptp(100, 0.05);
+    robot_trajectory::RobotTrajectory r_trajec(move_group_->getRobotModel(), move_group_->getName());
+    r_trajec.setRobotTrajectoryMsg(*move_group_->getCurrentState(), trajectory);
+    iptp.computeTimeStamps(r_trajec, 1, 1);
+    r_trajec.getRobotTrajectoryMsg(trajectory);
+    iptp.computeTimeStamps(r_trajec, speed_scale_, speed_scale_);
+    r_trajec.getRobotTrajectoryMsg(trajectory_slow);
 
     moveit::planning_interface::MoveGroupInterface::Plan plan;
-    plan.trajectory_ = trajectory;
+    plan.trajectory_ = trajectory_slow;
     move_group_->execute(plan);
     return true;
   }
