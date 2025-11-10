@@ -15,6 +15,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/PickObject.action"
   "srv/GetPlayerBets.srv"
   "srv/MovementRequest.srv"
+  "srv/GripperCmd.srv"
   "msg/Player.msg"
   "msg/Players.msg"
   "msg/DiceResult.msg"

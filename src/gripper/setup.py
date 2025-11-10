@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'gripper_server = gripper.gripper_server:main',
         ],
     },
 )
