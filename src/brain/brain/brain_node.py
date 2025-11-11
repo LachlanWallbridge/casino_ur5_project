@@ -5,7 +5,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from custom_interface.msg import DiceResults
-from custom_interface.srv import StartRound
+from custom_interface.srv import StartRound, GripperCmd
 from custom_interface.action import Movement
 from geometry_msgs.msg import Pose
 from tf_transformations import euler_from_quaternion
@@ -48,6 +48,12 @@ class Brain(Node):
         self.latest_dice = []
         self.round_active = False
 
+        # ---- Gripper Service ----
+        self.gripper_client = self.create_client(GripperCmd, 'gripper_cmd')
+        while not self.gripper_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for Gripper Service...')
+        self.get_logger().info('✅ Connected to Gripper Service.')
+
     # ============================================================== #
     #   CALLBACKS
     # ============================================================== #
@@ -73,6 +79,21 @@ class Brain(Node):
         response.message = "Round started successfully."
         return response
 
+    def gripper_command(self, width: int) -> bool:
+        """Send command to gripper via service."""
+        req = GripperCmd.Request()
+        req.width = width
+
+        future = self.gripper_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        res = future.result()
+
+        if res.success:
+            self.get_logger().info(f"Gripper set to width {width}.")
+        else:
+            self.get_logger().warn(f"Gripper command failed: {res.message}")
+
+        return res.success
     # ============================================================== #
     #   MANUAL ROUND START
     # ============================================================== #
@@ -171,6 +192,10 @@ class Brain(Node):
             return
         
         # TODO: Grip dice (not implemented)
+        if not self.gripper_command(180):  # Example width
+            self.get_logger().warn("Gripper command failed. Skipping pickup.")
+        else:
+            self.get_logger().info("Dice gripped successfully.")
 
         # Return home
         positions = [-1.3, 1.57, -1.83, -1.57, 0, 0]
@@ -178,8 +203,10 @@ class Brain(Node):
             self.get_logger().warn("Return to home failed.")
 
         # TODO: Release dice (not implemented)
-        
-        self.get_logger().info("Pickup complete.")
+        if not self.gripper_command(0):  # Open gripper
+            self.get_logger().warn("Gripper release command failed.")
+        else:
+            self.get_logger().info("Release complete.")
 
     # ============================================================== #
     #   ACTION CALL
