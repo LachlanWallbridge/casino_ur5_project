@@ -1,0 +1,73 @@
+<?xml version="1.0" ?>
+<robot name="ur_with_gripper" xmlns:xacro="http://www.ros.org/wiki/xacro" >
+
+  <!-- UR5e robot arm -->
+  <!-- URDF won't build if following args aren't defined. -->
+  <xacro:arg name="name" default="ur5"/>
+  <xacro:arg name="ur_type" default="ur5"/>
+  <xacro:include filename="$(find ur_description)/urdf/ur.urdf.xacro"/>
+
+  <!-- end effector -->
+   <link name="rail_gripper_base_link">
+    <visual>
+      <geometry>
+        <box size="0.0603 0.06 0.06"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </visual>
+  </link>
+
+  <!-- Right finger -->
+  <link name="right_finger">
+    <visual>
+      <geometry>
+        <box size="0.03625 0.008 0.0335"/>
+      </geometry>
+      <origin xyz="0 0.004 0.0470" rpy="0 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.03625 0.008 0.0335"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Left finger -->
+  <link name="left_finger">
+    <visual>
+      <geometry>
+        <box size="0.03625 0.008 0.0335"/>
+      </geometry>
+      <origin xyz="0 -0.004 0.0470" rpy="0 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.03625 0.008 0.0335"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Right finger prismatic joint -->
+  <joint name="right_finger_joint" type="prismatic">
+    <parent link="rail_gripper_base_link"/>
+    <child link="right_finger"/>
+    <origin xyz="0 0.004 0.0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.004" upper="0.02" effort="10" velocity="0.05"/>
+  </joint>
+
+  <!-- Left finger prismatic joint (mimics right finger) -->
+  <joint name="left_finger_joint" type="prismatic">
+    <parent link="rail_gripper_base_link"/>
+    <child link="left_finger"/>
+    <origin xyz="0 -0.004 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.004" upper="0.02" effort="10" velocity="0.05"/>
+    <mimic joint="right_finger_joint" multiplier="-1" offset="0"/>
+  </joint>
+
+  <joint name="wrist_3_link_to_gripper_base" type="fixed">
+    <parent link="tool0"/>
+    <child link="rail_gripper_base_link"/>
+  </joint>
+</robot>

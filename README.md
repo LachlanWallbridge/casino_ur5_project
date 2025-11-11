@@ -1,5 +1,7 @@
 # MTRN4231_Project
 Ground project for MTRN4231 Robotics project
+<<<<<<< HEAD
+=======
 
 
 
@@ -14,3 +16,4 @@ sudo apt install ros-humble-message-filters
 
 sudo apt install ros-humble-tf-transformations
 ```
+>>>>>>> origin/main

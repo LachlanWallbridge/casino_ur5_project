@@ -2,40 +2,41 @@
 
 import rclpy
 from rclpy.node import Node
-from custom_interface.srv import GripperCmd, ResetGripperCmd
+from custom_interface.srv import GripperCmd
 import requests
+import serial
+
 
 class GripperServer(Node):
+
     def __init__(self):
         super().__init__('gripper_server')
         self.srv = self.create_service(GripperCmd, 'gripper_cmd', self.gripper_callback)
-        self.srv = self.create_service(ResetGripperCmd, 'reset_gripper_cmd', self.reset_gripper_callback)
         self.get_logger().info('Gripper Server ready to receive commands...')
+        self.ser = serial.Serial(port='/dev/ttyACM0', baudrate=9600)
+    
         
     def gripper_callback(self, request, response):
         # Validate width
-        if not (0 <= request.width <= 100):
+        if not (0 <= request.width <= 180):
             response.success = False
-            response.message = f'Width must be between 0-100 (received {request.width})'
-            return response
-            
-        # Validate force
-        if not (3 <= request.force <= 40):
-            response.success = False
-            response.message = f'Force must be between 3-40 (received {request.force})'
+            response.message = f'Width must be between 0-180 (received {request.width})'
             return response
             
         try:
             # Send command to gripper
-            url = f"http://192.168.1.1/api/dc/rgxp2/set_width/0/{request.width}/{request.force}"
-            res = requests.get(url)
-            
-            if res.status_code == 200:
+            self.ser.write(f"{int(request.width)}\n".encode('ascii'))
+            self.ser.flush()
+            # wait for response
+            res = self.ser.readline().decode('ascii', errors='ignore').strip()
+
+
+            if res == "OK":
                 response.success = True
-                response.message = f'Gripper set to width {request.width} with force {request.force}'
+                response.message = f'Gripper set to width {request.width}'
             else:
                 response.success = False
-                response.message = f'Gripper command failed with HTTP status {res.status_code}'
+                response.message = f'Gripper command failed: {res}'
                 
         except Exception as e:
             response.success = False
@@ -43,32 +44,6 @@ class GripperServer(Node):
             
         return response
 
-  
-    def reset_gripper_callback(self, request, response):  
-        reset = request.reset_gripper
-
-        if not reset:
-            response.success = False
-            response.message = f'Reset denied by user input'
-            return response
-
-        try:
-            # Send command to gripper
-            url = f"http://192.168.1.1/api/dc/reset_tool_power"
-            res = requests.get(url)
-            
-            if res.status_code == 200:
-                response.success = True
-                response.message = f'Gripper reset success'
-            else:
-                response.success = False
-                response.message = f'Gripper command failed with HTTP status {res.status_code}'
-                
-        except Exception as e:
-            response.success = False
-            response.message = f'Error communicating with gripper: {str(e)}'
-            
-        return response
 
 
 def main(args=None):
