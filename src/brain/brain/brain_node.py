@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import time
+import threading
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
@@ -13,6 +14,10 @@ from tf_transformations import euler_from_quaternion
 class Brain(Node):
     def __init__(self):
         super().__init__('brain')
+
+        # ---- Parameters ----
+        self.declare_parameter('manual_start', False)
+        self.manual_start = self.get_parameter('manual_start').get_parameter_value().bool_value
 
         # ---- Action Client ----
         self.movement_action_client = ActionClient(self, Movement, '/moveit_path_plan')
@@ -28,20 +33,24 @@ class Brain(Node):
             10
         )
 
-        # ---- Services ----
-        self.start_round_srv = self.create_service(
-            StartRound, '/start_round', self.start_round_callback
-        )
+        # ---- Services (only if not manual) ----
+        if not self.manual_start:
+            self.start_round_srv = self.create_service(
+                StartRound, '/start_round', self.start_round_callback
+            )
+            self.get_logger().info('🧠 Brain node ready. Awaiting /start_round service calls.')
+        else:
+            # Run a background thread for console input
+            threading.Thread(target=self.wait_for_manual_start, daemon=True).start()
+            self.get_logger().info('🧠 Brain node ready. Press ENTER in console to start a round.')
 
         # ---- State ----
         self.latest_dice = []
         self.round_active = False
 
-        self.get_logger().info('🧠 Brain node ready. Awaiting start_round calls.')
-
-    # ==============================================================
+    # ============================================================== #
     #   CALLBACKS
-    # ==============================================================
+    # ============================================================== #
 
     def dice_callback(self, msg: DiceResults):
         """Update list of currently detected dice."""
@@ -59,18 +68,37 @@ class Brain(Node):
             response.message = "Round already in progress."
             return response
 
-        self.round_active = True
-        self.get_logger().info("🎯 StartRound service received. Starting a new round...")
+        self.start_round()
         response.accepted = True
         response.message = "Round started successfully."
-
-        # Run the round asynchronously
-        self.create_timer(0.1, self._run_round_once)
         return response
 
-    # ==============================================================
+    # ============================================================== #
+    #   MANUAL ROUND START
+    # ============================================================== #
+
+    def wait_for_manual_start(self):
+        """Blocking console input to manually trigger a round."""
+        while rclpy.ok():
+            input("\nPress ENTER to start a round...\n")
+            if not self.round_active:
+                self.get_logger().info("🎯 Manual start detected. Starting new round...")
+                self.start_round()
+            else:
+                self.get_logger().warn("Round already in progress.")
+
+    # ============================================================== #
     #   ROUND EXECUTION
-    # ==============================================================
+    # ============================================================== #
+
+    def start_round(self):
+        """Common entry point to start a round."""
+        if self.round_active:
+            self.get_logger().warn("Round already running — ignoring start request.")
+            return
+
+        self.round_active = True
+        self.create_timer(0.1, self._run_round_once)
 
     def _run_round_once(self):
         """Executes a single round (non-blocking via timer)."""
@@ -82,12 +110,12 @@ class Brain(Node):
 
         # Wait up to 10 seconds for dice
         wait_time = 0.0
-        while len(self.latest_dice) == 0 and wait_time < 10.0 and rclpy.ok():
+        while len(self.latest_dice) != 2 and wait_time < 10.0 and rclpy.ok():
             rclpy.spin_once(self, timeout_sec=0.2)
             wait_time += 0.2
 
-        if len(self.latest_dice) == 0:
-            self.get_logger().warn("No dice detected. Ending round.")
+        if len(self.latest_dice) != 2:
+            self.get_logger().warn(f"{len(self.latest_dice)} dice detected. Ending round.")
             self.round_active = False
             return
 
@@ -103,15 +131,17 @@ class Brain(Node):
             rclpy.spin_once(self, timeout_sec=0.2)
             current_dice = self.latest_dice[0]
             self.pickup_dice(current_dice)
+
+            # Short delay to allow for updated detections
             time.sleep(0.5)
             rclpy.spin_once(self, timeout_sec=0.2)
 
         self.get_logger().info("✅ Round complete. All dice removed.")
         self.round_active = False
 
-    # ==============================================================
+    # ============================================================== #
     #   DICE PICKUP ROUTINE
-    # ==============================================================
+    # ============================================================== #
 
     def pickup_dice(self, dice_msg):
         """Move to the dice pose, pick up, and return home."""
@@ -139,17 +169,21 @@ class Brain(Node):
         if not self.call_move_action('cartesian', pose_rpy, '1'):
             self.get_logger().warn("Move to dice (above) failed. Skipping.")
             return
+        
+        # TODO: Grip dice (not implemented)
 
         # Return home
         positions = [-1.3, 1.57, -1.83, -1.57, 0, 0]
         if not self.call_move_action('joint', positions, '0'):
             self.get_logger().warn("Return to home failed.")
 
+        # TODO: Release dice (not implemented)
+        
         self.get_logger().info("Pickup complete.")
 
-    # ==============================================================
+    # ============================================================== #
     #   ACTION CALL
-    # ==============================================================
+    # ============================================================== #
 
     def call_move_action(self, command: str, positions: list, constraints_id: str) -> bool:
         """Send goal to MoveIt action server and wait for result."""
@@ -190,9 +224,9 @@ class Brain(Node):
         self.get_logger().info(f"[MoveIt Feedback] {feedback.status}")
 
 
-# ==============================================================
+# ============================================================== #
 #   MAIN
-# ==============================================================
+# ============================================================== #
 
 def main(args=None):
     rclpy.init(args=args)

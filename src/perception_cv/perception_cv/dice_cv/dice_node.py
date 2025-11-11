@@ -72,7 +72,8 @@ class DiceDetector(Node):
         total_sum = sum(int(box.cls[0]) + 1 for box in detected_dice)
 
         dice_results_msg = DiceResults()
-        dice_list = []
+        dice_list_world = []  # published
+        dice_list_board = []  # visualised
 
         for box in detected_dice:
             # YOLO outputs are relative to cropped region → convert back to full image coords
@@ -103,8 +104,6 @@ class DiceDetector(Node):
                     yaw_rad = -math.radians(angle)
             except Exception as e:
                 self.get_logger().warn(f"Rotation estimation failed: {e}")
-
-            q = quaternion_from_euler(0.0, 0.0, yaw_rad)
 
             # --- Convert pixel → board coordinates directly (full image space) ---
             x_m, y_m, z_m = pixel_to_board_coords(
@@ -139,6 +138,9 @@ class DiceDetector(Node):
             dr.height = y2 - y1
             dr.dice_number = dice_num
             dr.confidence = conf
+            
+            # --- Orientation quaternion ---
+            q = quaternion_from_euler(math.pi, 0.0, -yaw_rad)   # Target pose is downward facing, and reversed yaw.
 
             # Use the world position directly
             dr.pose.position.x = point_world.point.x
@@ -153,12 +155,23 @@ class DiceDetector(Node):
             self.get_logger().info(f"Dice world position: ({dr.pose.position.x:.3f}, {dr.pose.position.y:.3f}, {dr.pose.position.z:.3f}), yaw={math.degrees(yaw_rad):.1f}°")
 
 
-            dice_list.append(dr)
+            dice_list_world.append(dr)
+
+            # --- Create separate board-frame version for markers ---
+            dr_board = DiceResult()
+            dr_board.pose.position.x = x_m
+            dr_board.pose.position.y = y_m
+            dr_board.pose.position.z = z_m
+            dr_board.pose.orientation = Quaternion(
+                x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3])
+            )
+            dr_board.dice_number = dice_num
+            dice_list_board.append(dr_board)
 
         # --- Publish results and markers ---
-        dice_results_msg.dice = dice_list
+        dice_results_msg.dice = dice_list_world
         self.dice_pub.publish(dice_results_msg)
-        self.publish_dice_markers(dice_list)
+        self.publish_dice_markers(dice_list_board)
 
         # --- Overlay crop region for debugging ---
         cv2.rectangle(frame_full, (x_start, y_start), (x_end, y_end), (0, 255, 0), 2)
