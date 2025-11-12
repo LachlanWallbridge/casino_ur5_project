@@ -14,6 +14,9 @@ setup(
         # Include YOLO weights
         (os.path.join('share', package_name, 'dice_cv', 'weights'),
          glob('perception_cv/dice_cv/weights/*')),
+        #include launch files
+        (os.path.join('share', package_name, 'launch'),
+         glob('launch/perception.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
