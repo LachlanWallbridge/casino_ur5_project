@@ -9,6 +9,8 @@ from custom_interface.srv import StartRound
 from custom_interface.action import Movement
 from geometry_msgs.msg import Pose
 from tf_transformations import euler_from_quaternion
+from rclpy.executors import MultiThreadedExecutor
+
 
 
 class Brain(Node):
@@ -144,14 +146,7 @@ class Brain(Node):
     # ============================================================== #
 
     def pickup_dice(self, dice_msg):
-        """Move to the dice pose, pick up, and return home."""
-        pose: Pose = dice_msg.pose
-
-        self.get_logger().info(
-            f"Picking up dice {dice_msg.dice_number} at "
-            f"({pose.position.x:.3f}, {pose.position.y:.3f}, {pose.position.z:.3f}) "
-            f"(confidence={dice_msg.confidence:.2f})"
-        )
+        pose = dice_msg.pose
 
         above_pose = [
             pose.position.x,
@@ -166,20 +161,17 @@ class Brain(Node):
         roll, pitch, yaw = euler_from_quaternion(above_pose[3:])
         pose_rpy = [above_pose[0], above_pose[1], above_pose[2], roll, pitch, yaw]
 
-        if not self.call_move_action('cartesian', pose_rpy, '1'):
-            self.get_logger().warn("Move to dice (above) failed. Skipping.")
+        # 1️⃣ Move above dice
+        if self.call_move_action('cartesian', pose_rpy, '1'):
+            self.get_logger().info("Reached above dice. Proceeding to pickup.")
+        else:
+            self.get_logger().error("Failed to reach above dice.")
             return
-        
-        # TODO: Grip dice (not implemented)
 
-        # Return home
-        positions = [-1.3, 1.57, -1.83, -1.57, 0, 0]
-        if not self.call_move_action('joint', positions, '0'):
-            self.get_logger().warn("Return to home failed.")
+        # 2️⃣ Return home (only after success)
+        home_joints = [-1.3, 1.57, -1.83, -1.57, 0, 0]
+        self.call_move_action('joint', home_joints, '0')
 
-        # TODO: Release dice (not implemented)
-        
-        self.get_logger().info("Pickup complete.")
 
     # ============================================================== #
     #   ACTION CALL
@@ -195,11 +187,8 @@ class Brain(Node):
         self.get_logger().info(f"Sending MoveIt goal: {command} → {positions}")
 
         # Send goal asynchronously
-        send_goal_future = self.movement_action_client.send_goal_async(
-            goal_msg
-        )
-
-        rclpy.spin_until_future_complete(self, send_goal_future)
+        send_goal_future = self.movement_action_client.send_goal_async(goal_msg)
+        self.wait_for_future(send_goal_future)
         goal_handle = send_goal_future.result()
 
         if not goal_handle.accepted:
@@ -208,10 +197,8 @@ class Brain(Node):
 
         self.get_logger().info("Goal accepted. Waiting for result...")
         get_result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, get_result_future,
-            feedback_callback=self.feedback_callback)
+        rclpy.spin_until_future_complete(self, get_result_future)
         result = get_result_future.result().result
-
         success = result.success
         if success:
             self.get_logger().info("✅ MoveIt action succeeded.")
@@ -219,26 +206,104 @@ class Brain(Node):
             self.get_logger().warn("❌ MoveIt action failed.")
         return success
 
+    # def call_move_action(self, command: str, positions: list, constraints_id: str):
+    #     goal_msg = Movement.Goal()
+    #     goal_msg.command = command
+    #     goal_msg.positions = positions
+    #     goal_msg.constraints_identifier = constraints_id
+
+    #     self.get_logger().info(f"Sending MoveIt goal: {command} → {positions}")
+
+    #     send_goal_future = self.movement_action_client.send_goal_async(
+    #         goal_msg, feedback_callback=self.feedback_callback
+    #     )
+    #     # Wait for the goal to be accepted/rejected
+    #     rclpy.spin_until_future_complete(self, send_goal_future)
+    #     goal_handle = send_goal_future.result()
+
+    #     if not goal_handle.accepted:
+    #         self.get_logger().error("Goal rejected by MoveIt action server.")
+    #         return False
+
+    #     self.get_logger().info("Goal accepted. Waiting for result...")
+
+    #     # Wait for result
+    #     get_result_future = goal_handle.get_result_async()
+    #     rclpy.spin_until_future_complete(self, get_result_future)
+    #     result = get_result_future.result()
+
+    #     if result.status == GoalStatus.STATUS_SUCCEEDED:
+    #         self.get_logger().info("MoveIt action succeeded.")
+    #         return True
+    #     else:
+    #         self.get_logger().warn(f"MoveIt action failed with status: {result.status}")
+    #         return False
+
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().error("Goal rejected by MoveIt action server.")
+            return
+
+        self.get_logger().info("Goal accepted. Waiting for result...")
+        get_result_future = goal_handle.get_result_async()
+        get_result_future.add_done_callback(self.get_result_callback)
+
+    def get_result_callback(self, future):
+        result = future.result().result
+        if result.success:
+            self.get_logger().info("✅ MoveIt action succeeded.")
+        else:
+            self.get_logger().warn("❌ MoveIt action failed.")
+
+
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
         self.get_logger().info(f"[MoveIt Feedback] {feedback.status}")
+
+
+
+    def wait_for_future(self, future):
+        """Spin the node until the future is complete, processing callbacks."""
+        while rclpy.ok() and not future.done():
+            rclpy.spin_once(self, timeout_sec=0.1)
+
 
 
 # ============================================================== #
 #   MAIN
 # ============================================================== #
 
+# def main(args=None):
+#     rclpy.init(args=args)
+#     node = Brain()
+#     try:
+#         rclpy.spin(node)
+#     except KeyboardInterrupt:
+#         pass
+#     finally:
+#         node.destroy_node()
+#         rclpy.shutdown()
+
+
+# if __name__ == "__main__":
+#     main()
+
 def main(args=None):
     rclpy.init(args=args)
     node = Brain()
+
+    # Create a multi-threaded executor
+    executor = MultiThreadedExecutor(num_threads=3)  # one thread per "thing"
+    executor.add_node(node)
+
     try:
-        rclpy.spin(node)
+        executor.spin()  # Will run subscriber, service, action callbacks in parallel
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 
-
-if __name__ == "__main__":
-    main()
