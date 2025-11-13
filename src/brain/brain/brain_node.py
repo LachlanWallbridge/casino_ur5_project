@@ -95,9 +95,9 @@ class Brain(Node):
 
     def start_round(self):
         """Common entry point to start a round."""
-        if self.round_active:
-            self.get_logger().warn("Round already running — ignoring start request.")
-            return
+        # if self.round_active:
+        #     self.get_logger().warn("Round already running — ignoring start request.")
+        #     return
 
         self.round_active = True
         self.create_timer(0.1, self._run_round_once)
