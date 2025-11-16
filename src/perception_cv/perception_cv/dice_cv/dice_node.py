@@ -9,17 +9,21 @@ from ament_index_python.packages import get_package_share_directory
 import os
 import math
 from tf_transformations import quaternion_from_euler
+from tf_transformations import quaternion_multiply
 from custom_interface.msg import DiceResult, DiceResults
 from geometry_msgs.msg import Quaternion
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.time import Time
 import tf2_ros
+from geometry_msgs.msg import PoseStamped
+import rclpy.time
 
-from perception_cv import pixel_to_board_coords, pixel_to_world_pose, BOARD_W_MM, BOARD_H_MM, PIXEL_TO_METERS
+
+from perception_cv import pixel_to_board_coords, pixel_to_world_pose, visualise_pose_in_rviz, BOARD_W_MM, BOARD_H_MM, PIXEL_TO_METERS
 
 WINDOW_NAME = "Dice Recognition"
 SECONDARY_COLOR = (0, 0, 255)
-DICE_HALF_HEIGHT = 0.10  # 30 mm height offset for board frame
+DICE_HALF_HEIGHT = 0.03  # 30 mm height offset for board frame
 
 
 class DiceDetector(Node):
@@ -43,6 +47,7 @@ class DiceDetector(Node):
         # --- Publishers ---
         self.dice_pub = self.create_publisher(DiceResults, "dice_results", 10)
         self.marker_pub = self.create_publisher(MarkerArray, "dice_markers", 10)
+        self.ee_marker_pub = self.create_publisher(MarkerArray, "dice_ee_goal_markers", 10)
 
         # -- Buffer --
         self.tf_buffer = tf2_ros.Buffer()
@@ -74,6 +79,7 @@ class DiceDetector(Node):
         dice_results_msg = DiceResults()
         dice_list_world = []  # published
         dice_list_board = []  # visualised
+        viz_poses = []        # PoseStamped list for RViz axes
 
         for box in detected_dice:
             # YOLO outputs are relative to cropped region → convert back to full image coords
@@ -114,23 +120,27 @@ class DiceDetector(Node):
                 z_offset=DICE_HALF_HEIGHT
             )
 
-            point_world = pixel_to_world_pose(
+            pose_world = pixel_to_world_pose(
                 tf_buffer=self.tf_buffer,
                 x_px=cx,
                 y_px=cy,
                 z_offset=DICE_HALF_HEIGHT,
                 img_w=img_w,
                 img_h=img_h,
+                yaw_rad=yaw_rad,
                 node=self
             )
 
-            if point_world is None:
+            if pose_world is None:
                 self.get_logger().warn("Skipping dice detection due to TF failure.")
                 continue
 
-            self.get_logger().info(f"Dice board position: ({x_m:.3f}, {y_m:.3f}, {z_m:.3f}), yaw={math.degrees(yaw_rad):.1f}°")
+            self.get_logger().info(
+                f"Dice board position: ({x_m:.3f}, {y_m:.3f}, {z_m:.3f}), "
+                f"yaw={math.degrees(yaw_rad):.1f}°"
+            )
 
-            # --- Build DiceResult ---
+            # --- Build DiceResult (world frame pose) ---
             dr = DiceResult()
             dr.x = x1
             dr.y = y1
@@ -138,40 +148,67 @@ class DiceDetector(Node):
             dr.height = y2 - y1
             dr.dice_number = dice_num
             dr.confidence = conf
-            
-            # --- Orientation quaternion ---
-            q = quaternion_from_euler(math.pi, 0.0, -yaw_rad)   # Target pose is downward facing, and reversed yaw.
 
-            # Use the world position directly
-            dr.pose.position.x = point_world.point.x
-            dr.pose.position.y = point_world.point.y
-            dr.pose.position.z = point_world.point.z
+            # WORLD pose from TF
+            dr.pose = pose_world.pose
 
-            # Orientation from detected yaw
-            dr.pose.orientation = Quaternion(
-                x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3])
+            # Optional: extra rotation around Y if needed for end-effector convention
+            q_tf = dr.pose.orientation
+            q_tf_np = [q_tf.x, q_tf.y, q_tf.z, q_tf.w]
+
+            # Example: 180° around Y (adjust if needed)
+            q_extra = quaternion_from_euler(0.0, math.pi, 0.0)
+            q_final = quaternion_multiply(q_tf_np, q_extra)
+
+            dr.pose.orientation.x = q_final[0]
+            dr.pose.orientation.y = q_final[1]
+            dr.pose.orientation.z = q_final[2]
+            dr.pose.orientation.w = q_final[3]
+
+            self.get_logger().info(
+                f"Dice world position: ({dr.pose.position.x:.3f}, "
+                f"{dr.pose.position.y:.3f}, {dr.pose.position.z:.3f}), "
+                f"yaw={math.degrees(yaw_rad):.1f}°"
             )
-
-            self.get_logger().info(f"Dice world position: ({dr.pose.position.x:.3f}, {dr.pose.position.y:.3f}, {dr.pose.position.z:.3f}), yaw={math.degrees(yaw_rad):.1f}°")
-
 
             dice_list_world.append(dr)
 
-            # --- Create separate board-frame version for markers ---
+            # --- Board-frame version for markers ---
             dr_board = DiceResult()
             dr_board.pose.position.x = x_m
             dr_board.pose.position.y = y_m
             dr_board.pose.position.z = z_m
+
+            q_board = quaternion_from_euler(0.0, 0.0, yaw_rad)
             dr_board.pose.orientation = Quaternion(
-                x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3])
+                x=float(q_board[0]),
+                y=float(q_board[1]),
+                z=float(q_board[2]),
+                w=float(q_board[3]),
             )
             dr_board.dice_number = dice_num
             dice_list_board.append(dr_board)
+
+            # --- PoseStamped for RViz EE axes ---
+            viz_pose = PoseStamped()
+            viz_pose.header.frame_id = "world"
+            viz_pose.header.stamp = rclpy.time.Time().to_msg()
+            viz_pose.pose = dr.pose
+            viz_poses.append(viz_pose)
 
         # --- Publish results and markers ---
         dice_results_msg.dice = dice_list_world
         self.dice_pub.publish(dice_results_msg)
         self.publish_dice_markers(dice_list_board)
+
+        # --- Visualise end-effector goal poses in RViz ---
+        if viz_poses:
+            visualise_pose_in_rviz(
+                node=self,
+                poses=viz_poses,            # function supports single or list
+                marker_pub=self.ee_marker_pub,
+                scale=0.06,                 # slightly smaller axes for dice
+            )
 
         # --- Overlay crop region for debugging ---
         cv2.rectangle(frame_full, (x_start, y_start), (x_end, y_end), (0, 255, 0), 2)
