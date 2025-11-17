@@ -23,7 +23,7 @@ class ArucoDetector(Node):
 
         # --- Parameters ---
         self.declare_parameter('color_topic', '/camera/camera/color/image_raw')
-        self.declare_parameter('show_image', True)
+        self.declare_parameter('show_image', False)
         self.show_image = self.get_parameter('show_image').get_parameter_value().bool_value
 
         # --- ArUco Setup ---
