@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/Movement.action"
   "msg/RoundResult.msg"
   "srv/StartRound.srv"
+  "msg/CupResult.msg"
   DEPENDENCIES std_msgs geometry_msgs
 )
 
