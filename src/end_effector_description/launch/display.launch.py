@@ -92,7 +92,7 @@ def get_moveit_launch():
         actions=[
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
-                    PathJoinSubstitution([FindPackageShare('ur10e_moveit_config_official'), 'launch', 'ur_moveit.launch.py'])
+                    PathJoinSubstitution([FindPackageShare('ur_moveit_config_official'), 'launch', 'ur_moveit.launch.py'])
                 ),
                 launch_arguments=moveit_launch_args.items(),
             )
