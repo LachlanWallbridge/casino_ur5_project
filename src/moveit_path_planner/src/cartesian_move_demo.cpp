@@ -164,7 +164,7 @@ private:
     if (success) {
       feedback->status = "Execution complete.";
       goal_handle->publish_feedback(feedback);
-      RCLCPP_INFO(node_->get_logger(), "Success from cartesian.");
+      // RCLCPP_INFO(node_->get_logger(), "Success from cartesian.");
       result->success = true;
       goal_handle->succeed(result);
     } else {
@@ -367,5 +367,3 @@ int main(int argc, char** argv)
 
 // (to pickup pose down)
 // ros2 action send_goal /moveit_path_plan custom_interface/action/Movement "{command: 'cartesian', positions: [0.4, 0.1, 0.3, 3.1415926536, 0.0, -1.5707963268], constraints_identifier: 'FULL'}"
-
-
