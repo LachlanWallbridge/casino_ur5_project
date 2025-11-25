@@ -18,7 +18,7 @@ from perception_cv import broadcast_camera_to_world, pixel_to_board_coords, CAM_
 class ArucoDetector(Node):
     def __init__(self):
         super().__init__('aruco_detector')
-        self.process_every_n = 6   # process 1 out of every 5 frames
+        self.process_every_n = 4   # process 1 out of every N frames
         self.frame_count = 0
 
         # --- Parameters ---
