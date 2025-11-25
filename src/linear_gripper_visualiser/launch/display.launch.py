@@ -62,6 +62,7 @@ def generate_launch_description():
                     launch_arguments={
                         'ur_type': 'ur5e',
                         'launch_rviz': 'true',
+                        'description_file': os.path.join(get_package_share_directory('linear_gripper_visualiser'), 'urdf/ur_with_gripper.urdf.xacro')
                     }.items()
                 )
             ]

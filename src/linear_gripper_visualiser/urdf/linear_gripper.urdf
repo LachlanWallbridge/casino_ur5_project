@@ -9,6 +9,11 @@
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </visual>
+    <collision>
+      <geometry>
+        <box size="0.0603 0.06 0.06"/>
+      </geometry>
+    </collision>    
   </link>
 
   <!-- Right finger -->
@@ -17,7 +22,7 @@
       <geometry>
         <box size="0.03625 0.008 0.0335"/>
       </geometry>
-      <origin xyz="0 0.004 0.0470" rpy="0 0 0"/>
+      <origin xyz="0 0.004 0.05" rpy="0 0 0"/>
     </visual>
     <collision>
       <geometry>
@@ -32,7 +37,7 @@
       <geometry>
         <box size="0.03625 0.008 0.0335"/>
       </geometry>
-      <origin xyz="0 -0.004 0.0470" rpy="0 0 0"/>
+      <origin xyz="0 -0.004 0.05" rpy="0 0 0"/>
     </visual>
     <collision>
       <geometry>

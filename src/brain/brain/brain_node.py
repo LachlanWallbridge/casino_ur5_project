@@ -203,7 +203,7 @@ class Brain(Node):
             self.get_logger().warn("Return to home failed.")
 
         # TODO: Release dice (not implemented)
-        if not self.gripper_command(0):  # Open gripper
+        if not self.gripper_command(40):  # Open gripper
             self.get_logger().warn("Gripper release command failed.")
         else:
             self.get_logger().info("Release complete.")
