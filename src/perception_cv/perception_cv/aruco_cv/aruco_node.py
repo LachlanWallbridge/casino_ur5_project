@@ -18,7 +18,7 @@ from perception_cv import broadcast_camera_to_world, pixel_to_board_coords, CAM_
 class ArucoDetector(Node):
     def __init__(self):
         super().__init__('aruco_detector')
-        self.process_every_n = 15   # process 1 out of every 5 frames
+        self.process_every_n = 4   # process 1 out of every N frames
         self.frame_count = 0
 
         # --- Parameters ---
@@ -60,13 +60,19 @@ class ArucoDetector(Node):
 
     # ----------------------------------------------------------
     def image_callback(self, msg: Image):
-        if None in [self.fx, self.fy, self.cx, self.cy]:
-            return
+        # --- Throttle processing ---
+        self.frame_count += 1
+        if self.frame_count % self.process_every_n != 0:
+            self.get_logger().info("Skipping frame")
+            return  # skip this frame
+        else :
+            self.get_logger().info("Processing frame")
+            self.frame_count = 0
         
-        # # --- Throttle processing ---
-        # self.frame_count += 1
-        # if self.frame_count % self.process_every_n != 0:
-        #     return  # skip this frame
+        # --- Ensure intrinsics are available ---
+        if None in [self.fx, self.fy, self.cx, self.cy]:
+            self.get_logger().warn("Camera intrinsics not yet available.")
+            return
 
         # timestamp 
         stamp_now = self.get_clock().now().to_msg()

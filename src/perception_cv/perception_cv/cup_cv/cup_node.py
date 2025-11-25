@@ -59,8 +59,18 @@ class CupDetector(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
+        # --- OpenCV window ---
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-        self.get_logger().info("☕ Cup detector node started (yellow colour + board_frame).")
+        self.gui_timer = self.create_timer(0.1, self.gui_tick) # 10 Hz
+
+        self.get_logger().info("☕ Cup detector node started.")
+
+    def gui_tick(self):
+        """
+        This fires even when NO new image is received.
+        It processes OpenCV GUI events so VS Code doesn't freeze.
+        """
+        cv2.waitKey(1)
 
     # ==============================================================
     #   IMAGE CALLBACK
@@ -111,7 +121,6 @@ class CupDetector(Node):
             self.get_logger().info("No yellow contours found.")
             self.cup_pub.publish(CupResult())  # publish empty
             cv2.imshow(WINDOW_NAME, frame_full)
-            cv2.waitKey(1)
             return
 
         # Pick the largest contour above area threshold
@@ -129,7 +138,6 @@ class CupDetector(Node):
             self.get_logger().info("No contour above area threshold.")
             self.cup_pub.publish(CupResult())
             cv2.imshow(WINDOW_NAME, frame_full)
-            cv2.waitKey(1)
             return
 
         # ----------------------------------------------------------
@@ -228,7 +236,6 @@ class CupDetector(Node):
             self.get_logger().warn("Skipping cup detection due to TF failure.")
             self.cup_pub.publish(CupResult())
             cv2.imshow(WINDOW_NAME, frame_full)
-            cv2.waitKey(1)
             return
 
         self.get_logger().info(
@@ -313,7 +320,7 @@ class CupDetector(Node):
         # cv2.imshow("Cup Cropped Debug", debug_bgr)
 
         cv2.imshow(WINDOW_NAME, frame_full)
-        cv2.waitKey(1)
+
 
     # ==============================================================
     #   RVIZ MARKERS (board_frame)

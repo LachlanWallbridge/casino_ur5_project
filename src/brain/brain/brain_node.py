@@ -310,7 +310,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from custom_interface.msg import DiceResults
-from custom_interface.srv import StartRound
+from custom_interface.srv import StartRound, GripperCmd
 from custom_interface.action import Movement
 from tf_transformations import euler_from_quaternion
 
@@ -345,6 +345,15 @@ class Brain(Node):
 
         self.round_active = False
 
+        # ---- Gripper Service ----
+        self.gripper_client = self.create_client(GripperCmd, 'gripper_cmd')
+        while not self.gripper_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for Gripper Service...')
+        self.get_logger().info('✅ Connected to Gripper Service.')
+
+    # ============================================================== #
+    #   CALLBACKS
+    # ============================================================== #
 
     # ================================================================
     #   CALLBACKS
@@ -374,6 +383,26 @@ class Brain(Node):
         response.message = "Round started."
         return response
 
+    def gripper_command(self, width: int) -> bool:
+        """Send command to gripper via service."""
+        req = GripperCmd.Request()
+        req.width = width
+
+        future = self.gripper_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        res = future.result()
+        
+        time.sleep(5.0)
+        
+        if res.success:
+            self.get_logger().info(f"Gripper set to width {width}.")
+        else:
+            self.get_logger().warn(f"Gripper command failed: {res.message}")
+
+        return res.success
+    # ============================================================== #
+    #   MANUAL ROUND START
+    # ============================================================== #
 
     # ================================================================
     #   MANUAL START THREAD
@@ -434,7 +463,7 @@ class Brain(Node):
         above = [
             pose.position.x,
             pose.position.y,
-            pose.position.z + 0.05,
+            pose.position.z + 0.115,
             pose.orientation.x,
             pose.orientation.y,
             pose.orientation.z,
@@ -451,19 +480,32 @@ class Brain(Node):
 
         # Wait here in background thread (safe!)
         self._motion_done_event.wait()  # Wait until this motion finishes
-        self.get_logger().info(f"Dice msotion finished")
+        self.get_logger().info(f"Dice motion finished")
 
 
         # Home
         # self._current_motion_index = 1
         
-        # Clear event before sending motion
+        if not self.gripper_command(180):  # Grip Width
+            self.get_logger().warn("Gripper command failed. Skipping pickup.")
+        else:
+            self.get_logger().info("Dice gripped successfully.")
+
+        # Return home
+         # Clear event before sending motion
         self._motion_done_event.clear()
         self.send_motion("joint", [-1.5708, 0.7679, -0.7679, -1.5708, 0.0, 0.0], "NONE")
-        
+
         # Wait here in background thread (safe!)
         self._motion_done_event.wait()  # Wait until this motion finishes
         self.get_logger().info(f"Home motion finished")
+
+    
+        if not self.gripper_command(40):  # Open gripper
+            self.get_logger().warn("Gripper release command failed.")
+        else:
+            self.get_logger().info("Release complete.")
+       
 
 
         # # Step 1: move above dice
