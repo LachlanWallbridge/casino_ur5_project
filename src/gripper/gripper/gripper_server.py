@@ -13,7 +13,7 @@ class GripperServer(Node):
         super().__init__('gripper_server')
         self.srv = self.create_service(GripperCmd, 'gripper_cmd', self.gripper_callback)
         self.get_logger().info('Gripper Server ready to receive commands...')
-        self.ser = serial.Serial(port='/dev/ttyACM0', baudrate=9600)
+        self.ser = serial.Serial(port='/dev/ttyACM1', baudrate=9600)
     
         
     def gripper_callback(self, request, response):
@@ -21,6 +21,7 @@ class GripperServer(Node):
         if not (0 <= request.width <= 180):
             response.success = False
             response.message = f'Width must be between 0-180 (received {request.width})'
+            self.get_logger().info(response.message)
             return response
             
         try:

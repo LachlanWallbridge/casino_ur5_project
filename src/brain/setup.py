@@ -22,7 +22,8 @@ setup(
     license='MIT',
     entry_points={
         'console_scripts': [
-            'brain_node = brain.brain_node:main',
+            'brain_node = brain.brain_node:main',           # existing node
+            'brain_nocv_node = brain.brain_nocv_node:main',  # new node
         ],
     },
 )
