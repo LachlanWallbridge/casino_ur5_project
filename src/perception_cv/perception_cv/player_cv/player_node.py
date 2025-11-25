@@ -42,8 +42,18 @@ class PlayerDetector(Node):
         self.players_pub = self.create_publisher(Players, "players", 10)
         self.marker_pub = self.create_publisher(MarkerArray, "player_markers", 10)
 
+        # --- OpenCV window ---
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+        self.gui_timer = self.create_timer(0.1, self.gui_tick) # 10 Hz
+
         self.get_logger().info("🧍 Player detector node started (warped image mode).")
+
+    def gui_tick(self):
+        """
+        This fires even when NO new image is received.
+        It processes OpenCV GUI events so VS Code doesn't freeze.
+        """
+        cv2.waitKey(1)
 
     # ----------------------------------------------------------
     def create_player_markers(self, marker_id, x_m, y_m, z_m):
@@ -254,7 +264,6 @@ class PlayerDetector(Node):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, ZONE_COLOR, 2)
 
         cv2.imshow(WINDOW_NAME, display_frame)
-        cv2.waitKey(1)
 
 
 # ----------------------------------------------------------
