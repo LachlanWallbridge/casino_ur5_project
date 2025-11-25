@@ -109,7 +109,7 @@ private:
     goal_handle->publish_feedback(feedback);
 
     if (goal->positions.size() != 6) {
-      RCLCPP_ERROR(node_->get_logger(), "Expected 6 position elements, got %zu", goal->positions.size());
+      RCLCPP_INFO(node_->get_logger(), "Expected 6 position elements, got %zu", goal->positions.size());
       result->success = false;
       goal_handle->abort(result);
       return;
@@ -125,13 +125,13 @@ private:
       target_set = set_joint_target(goal->positions);
     }
     else {
-      RCLCPP_ERROR(node_->get_logger(), "Unknown movement command.");
+      RCLCPP_INFO(node_->get_logger(), "Unknown movement command.");
       return;
 
     }
 
     if (!target_set) {
-      RCLCPP_ERROR(node_->get_logger(), "Failed to set target.");
+      RCLCPP_INFO(node_->get_logger(), "Failed to set target.");
       result->success = false;
       goal_handle->abort(result);
       return;
@@ -164,6 +164,7 @@ private:
     if (success) {
       feedback->status = "Execution complete.";
       goal_handle->publish_feedback(feedback);
+      RCLCPP_INFO(node_->get_logger(), "Success from cartesian.");
       result->success = true;
       goal_handle->succeed(result);
     } else {

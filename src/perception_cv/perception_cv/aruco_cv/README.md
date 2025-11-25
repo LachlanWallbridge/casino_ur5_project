@@ -26,3 +26,10 @@ ros2 run perception_cv fake_camera \
     -p image_path:=/home/mtrn/MTRN4231_Project/images/warp2.png \
     -p topic:=board/warped_image
 ```
+
+### Using the bag:
+```bash
+ros2 bag play bags/2ndshort/ \
+    --loop \
+    --topics $(ros2 bag info bags/2ndshort/ | grep "/camera" | awk '{print $2}')
+```

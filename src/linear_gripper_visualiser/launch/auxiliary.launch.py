@@ -27,22 +27,14 @@ def gripper_server_launch():
 def moveit_planner_launch():
     return Node(
             package='moveit_path_planner',
-            executable='moveit_path_planning_server',
-            name='moveit_path_planning_server_node',
+            executable='cartesian_move_demo',
+            name='cartesian_move_demo_node',
             output='screen',
         )
 
-def camera_node_launch():
-    return Node(
-            package='camera',
-            executable='camera_node',
-            name='camera_node',
-            output='screen',
-        )
 
 def generate_launch_description():
     return LaunchDescription([
         gripper_server_launch(),
         moveit_planner_launch(),
-        camera_node_launch(),
     ])

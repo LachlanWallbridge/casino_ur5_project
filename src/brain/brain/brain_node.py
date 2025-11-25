@@ -223,8 +223,7 @@ class Brain(Node):
 
         # Send goal asynchronously
         send_goal_future = self.movement_action_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self.feedback_callback
+            goal_msg
         )
 
         rclpy.spin_until_future_complete(self, send_goal_future)
@@ -236,7 +235,8 @@ class Brain(Node):
 
         self.get_logger().info("Goal accepted. Waiting for result...")
         get_result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, get_result_future)
+        rclpy.spin_until_future_complete(self, get_result_future,
+            feedback_callback=self.feedback_callback)
         result = get_result_future.result().result
 
         success = result.success
