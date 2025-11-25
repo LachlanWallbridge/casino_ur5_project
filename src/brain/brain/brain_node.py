@@ -460,7 +460,7 @@ class Brain(Node):
         self.get_logger().info(f"Picking up dice with value {dice_msg.dice_number}")
         pose = dice_msg.pose
 
-        above = [
+        dice = [
             pose.position.x,
             pose.position.y,
             pose.position.z + 0.115,
@@ -469,23 +469,40 @@ class Brain(Node):
             pose.orientation.z,
             pose.orientation.w,
         ]
+        above = [
+            pose.position.x,
+            pose.position.y,
+            pose.position.z + 0.14,
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        ]
         roll, pitch, yaw = euler_from_quaternion(above[3:])
 
-        cart_pose = [above[0], above[1], above[2], roll, pitch, yaw]
+        above_pose = [above[0], above[1], above[2], roll, pitch, yaw]
+        dice_pose = [above[0], above[1], above[2], roll, pitch, yaw]
 
-        # self._current_motion_index = 0
+        # Move above dice
         # Clear event before sending motion
         self._motion_done_event.clear()
-        self.send_motion("cartesian", cart_pose, "FULL")
+        self.send_motion("cartesian", above_pose, "FULL")
 
         # Wait here in background thread (safe!)
         self._motion_done_event.wait()  # Wait until this motion finishes
         self.get_logger().info(f"Dice motion finished")
 
 
-        # Home
-        # self._current_motion_index = 1
-        
+        # Move to dice
+        # Clear event before sending motion
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", dice_pose, "FULL")
+
+        # Wait here in background thread (safe!)
+        self._motion_done_event.wait()  # Wait until this motion finishes
+        self.get_logger().info(f"Dice motion finished")
+
+        # Home        
         if not self.gripper_command(180):  # Grip Width
             self.get_logger().warn("Gripper command failed. Skipping pickup.")
         else:
