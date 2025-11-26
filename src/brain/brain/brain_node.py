@@ -335,7 +335,7 @@ class Brain(Node):
         # Tunable heights
         APPROACH = 0.10   # approach height above grab / place
         LIFT     = 0.15   # lift height for moving around
-        DUMP_X   = 0.20   # shift along global X to dump
+        DUMP_X   = -0.20   # shift along global X to dump
 
         # ------------------------------------------------------------
         # Compute grab position along cup's Z axis
