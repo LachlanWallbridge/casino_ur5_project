@@ -12,6 +12,7 @@ from custom_interface.srv import StartRound, GripperCmd
 from custom_interface.action import Movement
 from tf_transformations import euler_from_quaternion
 import transforms3d.quaternions as tq
+from sensor_msgs.msg import JointState
 
 TOOL_OFFSET = 0.13  # meters
 
@@ -39,6 +40,10 @@ class Brain(Node):
         self.latest_cup = None
         self.create_subscription(CupResult, 'cup_result', self.cup_callback, 10)
 
+        # Joint state holder
+        self._current_joints = None
+        self.create_subscription(JointState, "/joint_states", self._joint_states_cb, 10)
+
         # ---- Service ----
         if not self.manual_start:
             self.start_srv = self.create_service(StartRound, '/start_round', self.start_round_callback)
@@ -50,10 +55,10 @@ class Brain(Node):
         self.round_active = False
 
         # ---- Gripper Service ----
-        self.gripper_client = self.create_client(GripperCmd, 'gripper_cmd')
-        while not self.gripper_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Waiting for Gripper Service...')
-        self.get_logger().info('✅ Connected to Gripper Service.')
+        # self.gripper_client = self.create_client(GripperCmd, 'gripper_cmd')
+        # while not self.gripper_client.wait_for_service(timeout_sec=1.0):
+        #     self.get_logger().info('Waiting for Gripper Service...')
+        # self.get_logger().info('✅ Connected to Gripper Service.')
 
     # ================================================================
     #   CALLBACKS
@@ -86,6 +91,10 @@ class Brain(Node):
         return response
 
     def gripper_command(self, width: int) -> bool:
+
+        time.sleep(3.0)
+        return True
+
         """Send command to gripper via service."""
         req = GripperCmd.Request()
         req.width = width
@@ -102,6 +111,17 @@ class Brain(Node):
             self.get_logger().warn(f"Gripper command failed: {res.message}")
 
         return res.success
+
+
+    def _joint_states_cb(self, msg: JointState):
+        # msg.position is a tuple of 6 values (UR5e)
+        self._current_joints = list(msg.position)
+
+    def get_current_joints(self):
+        if self._current_joints is None:
+            self.get_logger().warn("Joint states not received yet.")
+            return None
+        return self._current_joints.copy()
     # ============================================================== #
     #   MANUAL ROUND START
     # ============================================================== #
@@ -124,6 +144,8 @@ class Brain(Node):
     # ================================================================
     def round_thread(self):
         self.get_logger().info("🏁 Starting round sequence...")
+
+        self.cup_ready(open_gripper=True)
 
         # ================================================================
         # 1) WAIT FOR CUP DETECTION
@@ -271,22 +293,42 @@ class Brain(Node):
             else:
                 self.get_logger().info("Gripper opened at home.")
 
+    
+    def cup_ready(self, open_gripper: bool = False):
+        """Return the robot to the standard home joint position."""
+        
+        # -88.12, 65.29, 20.54, 38.71, 0, -32.63, 
+        home_joints = [float(-88.12 * math.pi / 180.0), float(65.29 * math.pi / 180.0), float(20.54 * math.pi / 180.0), float(-38.71 * math.pi / 180.0), float(-180 * math.pi / 180.0), float(-32.63 * math.pi / 180.0)]
+
+        self.get_logger().info("Returning to home position.")
+
+        self._motion_done_event.clear()
+        self.send_motion("joint", home_joints, "NONE")
+        self._motion_done_event.wait()
+
+        self.get_logger().info("Home motion finished.")
+
+        if open_gripper:
+            if not self.gripper_command(20):
+                self.get_logger().warn("Failed to open gripper at home.")
+            else:
+                self.get_logger().info("Gripper opened at home.")
 
     def drop_into_cup(self, last_rpy):
-        if self.latest_cup is None:
+        if self.cup_start_xyz is None:
             return
+            
 
         self.get_logger().info("Dropping dice into cup.")
 
-        cup = self.latest_cup.pose
         roll, pitch, yaw = last_rpy
 
         clearance = 0.04
 
         target = [
-            cup.position.x,
-            cup.position.y,
-            cup.position.z + TOOL_OFFSET + clearance,
+            self.cup_start_xyz[0],
+            self.cup_start_xyz[1],
+            self.cup_start_xyz[2] + TOOL_OFFSET + clearance,
             roll,
             pitch,
             yaw
@@ -325,17 +367,16 @@ class Brain(Node):
 
         # Rotation matrix → cup's local Z axis in world frame
         R = tq.quat2mat(q_cup)
-        z_axis = R[:, 2]
+        z_axis = R[:, 0]
+        self.get_logger().info(f"Cup Z axis: {z_axis}")
 
         # Cup RPY
-        cup_roll, cup_pitch, cup_yaw = euler_from_quaternion(
-            q_cup[0], q_cup[1], q_cup[2], q_cup[3]
-        )
+        cup_roll, cup_pitch, cup_yaw = euler_from_quaternion(q_cup)
 
         # Tunable heights
-        APPROACH = 0.10   # approach height above grab / place
+        APPROACH = 0.20   # approach height above grab / place
         LIFT     = 0.15   # lift height for moving around
-        DUMP_X   = -0.20   # shift along global X to dump
+        DUMP_X   = 0.10   # shift along global X to dump
 
         # ------------------------------------------------------------
         # Compute grab position along cup's Z axis
@@ -344,7 +385,8 @@ class Brain(Node):
             cup.position.x,
             cup.position.y,
             cup.position.z,
-        ]) + TOOL_OFFSET * z_axis
+           ]) 
+        # ]) + TOOL_OFFSET * z_axis
 
         # Above-grab pose (like dice "above")
         above_grab_pos = grab_pos + np.array([0.0, 0.0, APPROACH])
@@ -364,12 +406,12 @@ class Brain(Node):
         # ------------------------------------------------------------
         # Move above cup
         self._motion_done_event.clear()
-        self.send_motion("cartesian", above_grab_pose, "FULL")
+        self.send_motion("cartesian", above_grab_pose, "FULL+WRIST1")
         self._motion_done_event.wait()
 
         # Move down to grab
         self._motion_done_event.clear()
-        self.send_motion("cartesian", grab_pose, "FULL")
+        self.send_motion("cartesian", grab_pose, "FULL+WRIST1")
         self._motion_done_event.wait()
 
         # Close gripper
@@ -398,71 +440,104 @@ class Brain(Node):
         self.send_motion("cartesian", dump_pose, "FULL")
         self._motion_done_event.wait()
 
+        # # ------------------------------------------------------------
+        # # 3. Flip cup 180° around its OWN Z axis
+        # # ------------------------------------------------------------
+        # q_z180 = tq.axangle2quat([0, 0, 1], math.pi)   # 180° about local Z
+        # q_flipped = tq.qmult(q_cup, q_z180)
+
+        # flip_roll, flip_pitch, flip_yaw = euler_from_quaternion(q_flipped)
+
+        # flip_pose = [
+        #     dump_pos[0], dump_pos[1], dump_pos[2],
+        #     flip_roll, flip_pitch, flip_yaw,
+        # ]
+
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", flip_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # time.sleep(1.0)  # allow dice to fall
+
+        # # Optionally rotate back upright at dump location
+        # upright_dump_pose = [
+        #     dump_pos[0], dump_pos[1], dump_pos[2],
+        #     cup_roll, cup_pitch, cup_yaw,
+        # ]
+
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", upright_dump_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # # ------------------------------------------------------------
+        # # 4. Return cup to start location with above/below pattern
+        # # ------------------------------------------------------------
+        # cup_start = np.array(self.cup_start_xyz)
+
+        # # Above the return location
+        # above_return_pos = cup_start + np.array([0.0, 0.0, LIFT])
+        # above_return_pose = [
+        #     above_return_pos[0], above_return_pos[1], above_return_pos[2],
+        #     cup_roll, cup_pitch, cup_yaw,
+        # ]
+
+        # # Move from dump back to above return
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", above_return_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # # Descend to final placement pose
+        # place_pose = [
+        #     cup_start[0], cup_start[1], cup_start[2],
+        #     cup_roll, cup_pitch, cup_yaw,
+        # ]
+
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", place_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # # Open gripper to release cup
+        # self.gripper_command(20)
+
+        # # Retreat back up so home move is clear of the cup
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", above_return_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # self.get_logger().info("Cup emptied and returned, EE retreated above cup.")
+
         # ------------------------------------------------------------
-        # 3. Flip cup 180° around its OWN Z axis
+        # 3. Flip cup 180° by rotating wrist3 +π
         # ------------------------------------------------------------
-        q_z180 = tq.axangle2quat([0, 0, 1], math.pi)   # 180° about local Z
-        q_flipped = tq.qmult(q_cup, q_z180)
 
-        flip_roll, flip_pitch, flip_yaw = euler_from_quaternion(q_flipped)
+        current = self.get_current_joints()
+        if current is None:
+            self.get_logger().error("No joint states available for flip.")
+            return
 
-        flip_pose = [
-            dump_pos[0], dump_pos[1], dump_pos[2],
-            flip_roll, flip_pitch, flip_yaw,
-        ]
+        # copy
+        target = current.copy()
 
+        # add +π to wrist3 (joint index 5)
+        target[5] += math.pi
+
+        # normalize angle to [-π, +π]
+        target[5] = math.atan2(math.sin(target[5]), math.cos(target[5]))
+
+        # send joint motion
         self._motion_done_event.clear()
-        self.send_motion("cartesian", flip_pose, "FULL")
+        self.send_motion("joint", target, "NONE")
         self._motion_done_event.wait()
 
         time.sleep(1.0)  # allow dice to fall
 
-        # Optionally rotate back upright at dump location
-        upright_dump_pose = [
-            dump_pos[0], dump_pos[1], dump_pos[2],
-            cup_roll, cup_pitch, cup_yaw,
-        ]
-
-        self._motion_done_event.clear()
-        self.send_motion("cartesian", upright_dump_pose, "FULL")
-        self._motion_done_event.wait()
-
         # ------------------------------------------------------------
-        # 4. Return cup to start location with above/below pattern
+        # 4. Return wrist3 to original angle
         # ------------------------------------------------------------
-        cup_start = np.array(self.cup_start_xyz)
-
-        # Above the return location
-        above_return_pos = cup_start + np.array([0.0, 0.0, LIFT])
-        above_return_pose = [
-            above_return_pos[0], above_return_pos[1], above_return_pos[2],
-            cup_roll, cup_pitch, cup_yaw,
-        ]
-
-        # Move from dump back to above return
         self._motion_done_event.clear()
-        self.send_motion("cartesian", above_return_pose, "FULL")
+        self.send_motion("joint", current, "NONE")
         self._motion_done_event.wait()
 
-        # Descend to final placement pose
-        place_pose = [
-            cup_start[0], cup_start[1], cup_start[2],
-            cup_roll, cup_pitch, cup_yaw,
-        ]
-
-        self._motion_done_event.clear()
-        self.send_motion("cartesian", place_pose, "FULL")
-        self._motion_done_event.wait()
-
-        # Open gripper to release cup
-        self.gripper_command(20)
-
-        # Retreat back up so home move is clear of the cup
-        self._motion_done_event.clear()
-        self.send_motion("cartesian", above_return_pose, "FULL")
-        self._motion_done_event.wait()
-
-        self.get_logger().info("Cup emptied and returned, EE retreated above cup.")
 
 
 
