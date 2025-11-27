@@ -43,6 +43,7 @@ public:
     move_group_->setGoalOrientationTolerance(node_->get_parameter("goal_orientation_tolerance").as_double());
 
     move_group_->setPlannerId("TRRTkConfigDefault");
+    
 
     move_group_->setMaxVelocityScalingFactor(0.10);
     move_group_->setMaxAccelerationScalingFactor(0.10);
