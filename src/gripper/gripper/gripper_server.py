@@ -21,6 +21,7 @@ class GripperServer(Node):
         if not (0 <= request.width <= 180):
             response.success = False
             response.message = f'Width must be between 0-180 (received {request.width})'
+            self.get_logger().info(response.message)
             return response
             
         try:

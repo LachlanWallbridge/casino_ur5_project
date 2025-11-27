@@ -45,8 +45,8 @@ public:
     move_group_->setPlannerId("TRRTkConfigDefault");
     
 
-    move_group_->setMaxVelocityScalingFactor(0.10);
-    move_group_->setMaxAccelerationScalingFactor(0.10);
+    move_group_->setMaxVelocityScalingFactor(0.20);
+    move_group_->setMaxAccelerationScalingFactor(0.20);
 
     setupCollisionObjects();
 
@@ -221,7 +221,7 @@ private:
       wrist_constraint.tolerance_below = mid_angle - min_angle;
       wrist_constraint.tolerance_above = max_angle - mid_angle;
       wrist_constraint.weight = 1.0;
-      RCLCPP_INFO(node_->get_logger(), "WRIST1 constraint applied.");
+      RCLCPP_INFO(node_->get_logger(), "Wrist_1 constraint applied.");
       constraints.joint_constraints.push_back(wrist_constraint);
     }
 
@@ -366,7 +366,7 @@ int main(int argc, char** argv)
 
 
 // (this move to home first)
-// ros2 action send_goal /moveit_path_plan custom_interface/action/Movement "{command: 'joint', positions: [-1.57079633, 0.767945, -0.767945, -1.57079633, 0.0, 0.0], constraints_identifier: 'NONE'}"
+// ros2 action send_goal /moveit_path_plan custom_interface/action/Movement "{command: 'join  t', positions: [-1.57079633, 0.767945, -0.767945, -1.57079633, 0.0, 0.0], constraints_identifier: 'NONE'}"
 
 // (to pickup pose down)
 // ros2 action send_goal /moveit_path_plan custom_interface/action/Movement "{command: 'cartesian', positions: [0.4, 0.1, 0.3, 3.1415926536, 0.0, -1.5707963268], constraints_identifier: 'FULL'}"

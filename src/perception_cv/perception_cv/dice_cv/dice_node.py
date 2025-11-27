@@ -53,8 +53,18 @@ class DiceDetector(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
+        # --- OpenCV window ---
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+        self.gui_timer = self.create_timer(0.1, self.gui_tick) # 10 Hz
+
         self.get_logger().info("🎲 Dice detector node started (cropped top-half mode + rotation).")
+
+    def gui_tick(self):
+        """
+        This fires even when NO new image is received.
+        It processes OpenCV GUI events so VS Code doesn't freeze.
+        """
+        cv2.waitKey(1)
 
     # ----------------------------------------------------------
     def image_callback(self, rgb_msg):
@@ -214,7 +224,6 @@ class DiceDetector(Node):
         cv2.rectangle(frame_full, (x_start, y_start), (x_end, y_end), (0, 255, 0), 2)
         self._draw_stats(frame_full, dice_count, total_sum)
         cv2.imshow(WINDOW_NAME, frame_full)
-        cv2.waitKey(1)
 
     # ----------------------------------------------------------
     def _draw_stats(self, frame, dice_count, total_sum):

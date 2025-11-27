@@ -2,13 +2,18 @@
 <robot name="linear_gripper" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <!-- Base -->
-  <link name="base">
+  <link name="palm">
     <visual>
       <geometry>
         <box size="0.0603 0.06 0.06"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </visual>
+    <collision>
+      <geometry>
+        <box size="0.0603 0.06 0.06"/>
+      </geometry>
+    </collision>    
   </link>
 
   <!-- Right finger -->
@@ -17,7 +22,7 @@
       <geometry>
         <box size="0.03625 0.008 0.0335"/>
       </geometry>
-      <origin xyz="0 0.004 0.0470" rpy="0 0 0"/>
+      <origin xyz="0 0.004 0.05" rpy="0 0 0"/>
     </visual>
     <collision>
       <geometry>
@@ -32,7 +37,7 @@
       <geometry>
         <box size="0.03625 0.008 0.0335"/>
       </geometry>
-      <origin xyz="0 -0.004 0.0470" rpy="0 0 0"/>
+      <origin xyz="0 -0.004 0.05" rpy="0 0 0"/>
     </visual>
     <collision>
       <geometry>
@@ -41,23 +46,22 @@
     </collision>
   </link>
 
-  <!-- Right finger prismatic joint -->
+<!-- Right finger prismatic joint -->
   <joint name="right_finger_joint" type="prismatic">
-    <parent link="base"/>
+    <parent link="palm"/>
     <child link="right_finger"/>
     <origin xyz="0 0.004 0.0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <limit lower="-0.004" upper="0.02" effort="10" velocity="0.05"/>
   </joint>
 
-  <!-- Left finger prismatic joint (mimics right finger) -->
+  <!--Left finger prismatic joint (mimics right finger) -->
   <joint name="left_finger_joint" type="prismatic">
-    <parent link="base"/>
+    <parent link="palm"/>
     <child link="left_finger"/>
     <origin xyz="0 -0.004 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <limit lower="-0.004" upper="0.02" effort="10" velocity="0.05"/>
     <mimic joint="right_finger_joint" multiplier="-1" offset="0"/>
   </joint>
-
 </robot>
