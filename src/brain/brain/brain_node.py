@@ -368,9 +368,9 @@ class Brain(Node):
         cup_roll, cup_pitch, cup_yaw = euler_from_quaternion(q_cup)
 
         # Tunable heights
-        APPROACH = 0.20   # approach height above grab / place
-        LIFT     = 0.15   # lift height for moving around
-        DUMP_X   = 0.10   # shift along global X to dump
+        APPROACH = 0.15   # approach height above grab / place
+        LIFT     = 0.10   # lift height for moving around
+        DUMP_X   = 0.20   # shift along global X to dump
 
         # ------------------------------------------------------------
         # Compute grab position along cup's Z axis
@@ -436,72 +436,6 @@ class Brain(Node):
 
         self.get_logger().info("Reached dump location.")
 
-        # # ------------------------------------------------------------
-        # # 3. Flip cup 180° around its OWN Z axis
-        # # ------------------------------------------------------------
-        # q_z180 = tq.axangle2quat([0, 0, 1], math.pi)   # 180° about local Z
-        # q_flipped = tq.qmult(q_cup, q_z180)
-
-        # flip_roll, flip_pitch, flip_yaw = euler_from_quaternion(q_flipped)
-
-        # flip_pose = [
-        #     dump_pos[0], dump_pos[1], dump_pos[2],
-        #     flip_roll, flip_pitch, flip_yaw,
-        # ]
-
-        # self._motion_done_event.clear()
-        # self.send_motion("cartesian", flip_pose, "FULL")
-        # self._motion_done_event.wait()
-
-        # time.sleep(1.0)  # allow dice to fall
-
-        # # Optionally rotate back upright at dump location
-        # upright_dump_pose = [
-        #     dump_pos[0], dump_pos[1], dump_pos[2],
-        #     cup_roll, cup_pitch, cup_yaw,
-        # ]
-
-        # self._motion_done_event.clear()
-        # self.send_motion("cartesian", upright_dump_pose, "FULL")
-        # self._motion_done_event.wait()
-
-        # # ------------------------------------------------------------
-        # # 4. Return cup to start location with above/below pattern
-        # # ------------------------------------------------------------
-        # cup_start = np.array(self.cup_start_xyz)
-
-        # # Above the return location
-        # above_return_pos = cup_start + np.array([0.0, 0.0, LIFT])
-        # above_return_pose = [
-        #     above_return_pos[0], above_return_pos[1], above_return_pos[2],
-        #     cup_roll, cup_pitch, cup_yaw,
-        # ]
-
-        # # Move from dump back to above return
-        # self._motion_done_event.clear()
-        # self.send_motion("cartesian", above_return_pose, "FULL")
-        # self._motion_done_event.wait()
-
-        # # Descend to final placement pose
-        # place_pose = [
-        #     cup_start[0], cup_start[1], cup_start[2],
-        #     cup_roll, cup_pitch, cup_yaw,
-        # ]
-
-        # self._motion_done_event.clear()
-        # self.send_motion("cartesian", place_pose, "FULL")
-        # self._motion_done_event.wait()
-
-        # # Open gripper to release cup
-        # self.gripper_command(20)
-
-        # # Retreat back up so home move is clear of the cup
-        # self._motion_done_event.clear()
-        # self.send_motion("cartesian", above_return_pose, "FULL")
-        # self._motion_done_event.wait()
-
-        # self.get_logger().info("Cup emptied and returned, EE retreated above cup.")
-
         # ------------------------------------------------------------
         # 3. Flip cup 180° by rotating wrist3 +π
         # ------------------------------------------------------------
@@ -516,7 +450,7 @@ class Brain(Node):
         target = current.copy()
 
         # add +π to wrist3 (joint index 5)
-        target[4] += math.pi
+        target[4] += math.pi * 3/4
 
         # normalize angle to [-π, +π]
         target[4] = math.atan2(math.sin(target[4]), math.cos(target[4]))
