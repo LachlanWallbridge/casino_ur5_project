@@ -1,319 +1,20 @@
-# #!/usr/bin/env python3
-# import time
-# import threading
-# import rclpy
-# from rclpy.node import Node
-# from rclpy.action import ActionClient
-# from custom_interface.msg import DiceResults
-# from custom_interface.srv import StartRound
-# from custom_interface.action import Movement
-# from geometry_msgs.msg import Pose
-# from tf_transformations import euler_from_quaternion
-# from rclpy.executors import MultiThreadedExecutor
-
-
-
-# class Brain(Node):
-#     def __init__(self):
-#         super().__init__('brain')
-
-#         # ---- Parameters ----
-#         self.declare_parameter('manual_start', False)
-#         self.manual_start = self.get_parameter('manual_start').get_parameter_value().bool_value
-
-#         # ---- Action Client ----
-#         self.movement_action_client = ActionClient(self, Movement, '/moveit_path_plan')
-#         self.get_logger().info('Waiting for MoveIt Action Server...')
-#         self.movement_action_client.wait_for_server()
-#         self.get_logger().info('✅ Connected to MoveIt Action Server.')
-
-#         # ---- Subscribers ----
-#         self.dice_subscription = self.create_subscription(
-#             DiceResults,
-#             '/dice_results',
-#             self.dice_callback,
-#             10
-#         )
-
-#         # ---- Services (only if not manual) ----
-#         if not self.manual_start:
-#             self.start_round_srv = self.create_service(
-#                 StartRound, '/start_round', self.start_round_callback
-#             )
-#             self.get_logger().info('🧠 Brain node ready. Awaiting /start_round service calls.')
-#         else:
-#             # Run a background thread for console input
-#             threading.Thread(target=self.wait_for_manual_start, daemon=True).start()
-#             self.get_logger().info('🧠 Brain node ready. Press ENTER in console to start a round.')
-
-#         # ---- State ----
-#         self.latest_dice = []
-#         self.round_active = False
-
-#     # ============================================================== #
-#     #   CALLBACKS
-#     # ============================================================== #
-
-#     def dice_callback(self, msg: DiceResults):
-#         """Update list of currently detected dice."""
-#         self.latest_dice = msg.dice
-
-#     def start_round_callback(self, request, response):
-#         """Handle frontend 'Start Round' service calls."""
-#         if not request.start:
-#             response.accepted = False
-#             response.message = "Start flag was false — ignoring request."
-#             return response
-
-#         if self.round_active:
-#             response.accepted = False
-#             response.message = "Round already in progress."
-#             return response
-
-#         self.start_round()
-#         response.accepted = True
-#         response.message = "Round started successfully."
-#         return response
-
-#     # ============================================================== #
-#     #   MANUAL ROUND START
-#     # ============================================================== #
-
-#     def wait_for_manual_start(self):
-#         """Blocking console input to manually trigger a round."""
-#         while rclpy.ok():
-#             input("\nPress ENTER to start a round...\n")
-#             if not self.round_active:
-#                 self.get_logger().info("🎯 Manual start detected. Starting new round...")
-#                 self.start_round()
-#             else:
-#                 self.get_logger().warn("Round already in progress.")
-
-#     # ============================================================== #
-#     #   ROUND EXECUTION
-#     # ============================================================== #
-
-#     def start_round(self):
-#         """Common entry point to start a round."""
-#         # if self.round_active:
-#         #     self.get_logger().warn("Round already running — ignoring start request.")
-#         #     return
-
-#         self.round_active = True
-#         self.create_timer(0.1, self._run_round_once)
-
-#     def _run_round_once(self):
-#         """Executes a single round (non-blocking via timer)."""
-#         for timer in list(self.timers):
-#             if timer.callback == self._run_round_once:
-#                 timer.cancel()
-
-#         self.get_logger().info("Waiting for dice to appear...")
-
-#         # Wait up to 10 seconds for dice
-#         wait_time = 0.0
-#         while len(self.latest_dice) != 2 and wait_time < 10.0 and rclpy.ok():
-#             rclpy.spin_once(self, timeout_sec=0.2)
-#             wait_time += 0.2
-
-#         if len(self.latest_dice) != 2:
-#             self.get_logger().warn(f"{len(self.latest_dice)} dice detected. Ending round.")
-#             self.round_active = False
-#             return
-
-#         # Evaluate dice outcome
-#         dice = self.latest_dice
-#         values = [d.dice_number for d in dice]
-#         total = sum(values)
-#         odd_even = "odd" if total % 2 else "even"
-#         self.get_logger().info(f"🎲 Dice rolled: {values} (Total={total}, {odd_even.upper()})")
-
-#         # Closed-loop dice removal
-#         while rclpy.ok() and len(self.latest_dice) > 0:
-#             rclpy.spin_once(self, timeout_sec=0.2)
-#             current_dice = self.latest_dice[0]
-#             self.pickup_dice(current_dice)
-
-#             # Short delay to allow for updated detections
-#             time.sleep(0.5)
-#             rclpy.spin_once(self, timeout_sec=0.2)
-
-#         self.get_logger().info("✅ Round complete. All dice removed.")
-#         self.round_active = False
-
-#     # ============================================================== #
-#     #   DICE PICKUP ROUTINE
-#     # ============================================================== #
-
-#     def pickup_dice(self, dice_msg):
-#         pose = dice_msg.pose
-
-#         above_pose = [
-#             pose.position.x,
-#             pose.position.y,
-#             pose.position.z + 0.05,
-#             pose.orientation.x,
-#             pose.orientation.y,
-#             pose.orientation.z,
-#             pose.orientation.w,
-#         ]
-
-#         roll, pitch, yaw = euler_from_quaternion(above_pose[3:])
-#         pose_rpy = [above_pose[0], above_pose[1], above_pose[2], roll, pitch, yaw]
-
-#         # 1️⃣ Move above dice
-#         if self.call_move_action('cartesian', pose_rpy, '1'):
-#             self.get_logger().info("Reached above dice. Proceeding to pickup.")
-#         else:
-#             self.get_logger().error("Failed to reach above dice.")
-#             return
-
-#         # 2️⃣ Return home (only after success)
-#         home_joints = [-1.3, 1.57, -1.83, -1.57, 0, 0]
-#         self.call_move_action('joint', home_joints, '0')
-
-
-#     # ============================================================== #
-#     #   ACTION CALL
-#     # ============================================================== #
-
-#     def call_move_action(self, command: str, positions: list, constraints_id: str) -> bool:
-#         """Send goal to MoveIt action server and wait for result."""
-#         goal_msg = Movement.Goal()
-#         goal_msg.command = command
-#         goal_msg.positions = positions
-#         goal_msg.constraints_identifier = constraints_id
-
-#         self.get_logger().info(f"Sending MoveIt goal: {command} → {positions}")
-
-#         # Send goal asynchronously
-#         send_goal_future = self.movement_action_client.send_goal_async(goal_msg)
-#         self.wait_for_future(send_goal_future)
-#         goal_handle = send_goal_future.result()
-
-#         if not goal_handle.accepted:
-#             self.get_logger().error("Goal rejected by MoveIt action server.")
-#             return False
-
-#         self.get_logger().info("Goal accepted. Waiting for result...")
-#         get_result_future = goal_handle.get_result_async()
-#         rclpy.spin_until_future_complete(self, get_result_future)
-#         result = get_result_future.result().result
-#         success = result.success
-#         if success:
-#             self.get_logger().info("✅ MoveIt action succeeded.")
-#         else:
-#             self.get_logger().warn("❌ MoveIt action failed.")
-#         return success
-
-#     # def call_move_action(self, command: str, positions: list, constraints_id: str):
-#     #     goal_msg = Movement.Goal()
-#     #     goal_msg.command = command
-#     #     goal_msg.positions = positions
-#     #     goal_msg.constraints_identifier = constraints_id
-
-#     #     self.get_logger().info(f"Sending MoveIt goal: {command} → {positions}")
-
-#     #     send_goal_future = self.movement_action_client.send_goal_async(
-#     #         goal_msg, feedback_callback=self.feedback_callback
-#     #     )
-#     #     # Wait for the goal to be accepted/rejected
-#     #     rclpy.spin_until_future_complete(self, send_goal_future)
-#     #     goal_handle = send_goal_future.result()
-
-#     #     if not goal_handle.accepted:
-#     #         self.get_logger().error("Goal rejected by MoveIt action server.")
-#     #         return False
-
-#     #     self.get_logger().info("Goal accepted. Waiting for result...")
-
-#     #     # Wait for result
-#     #     get_result_future = goal_handle.get_result_async()
-#     #     rclpy.spin_until_future_complete(self, get_result_future)
-#     #     result = get_result_future.result()
-
-#     #     if result.status == GoalStatus.STATUS_SUCCEEDED:
-#     #         self.get_logger().info("MoveIt action succeeded.")
-#     #         return True
-#     #     else:
-#     #         self.get_logger().warn(f"MoveIt action failed with status: {result.status}")
-#     #         return False
-
-
-#     def goal_response_callback(self, future):
-#         goal_handle = future.result()
-#         if not goal_handle.accepted:
-#             self.get_logger().error("Goal rejected by MoveIt action server.")
-#             return
-
-#         self.get_logger().info("Goal accepted. Waiting for result...")
-#         get_result_future = goal_handle.get_result_async()
-#         get_result_future.add_done_callback(self.get_result_callback)
-
-#     def get_result_callback(self, future):
-#         result = future.result().result
-#         if result.success:
-#             self.get_logger().info("✅ MoveIt action succeeded.")
-#         else:
-#             self.get_logger().warn("❌ MoveIt action failed.")
-
-
-#     def feedback_callback(self, feedback_msg):
-#         feedback = feedback_msg.feedback
-#         self.get_logger().info(f"[MoveIt Feedback] {feedback.status}")
-
-
-
-#     def wait_for_future(self, future):
-#         """Spin the node until the future is complete, processing callbacks."""
-#         while rclpy.ok() and not future.done():
-#             rclpy.spin_once(self, timeout_sec=0.1)
-
-
-
-# # ============================================================== #
-# #   MAIN
-# # ============================================================== #
-
-# # def main(args=None):
-# #     rclpy.init(args=args)
-# #     node = Brain()
-# #     try:
-# #         rclpy.spin(node)
-# #     except KeyboardInterrupt:
-# #         pass
-# #     finally:
-# #         node.destroy_node()
-# #         rclpy.shutdown()
-
-
-# # if __name__ == "__main__":
-# #     main()
-
-# def main(args=None):
-#     rclpy.init(args=args)
-#     node = Brain()
-#     try:
-#         while rclpy.ok():
-#             rclpy.spin_once(node, timeout_sec=0.1)
-#     except KeyboardInterrupt:
-#         pass
-#     finally:
-#         node.destroy_node()
-#         rclpy.shutdown()
-
-
 #!/usr/bin/env python3
+import math
 import time
 import threading
+
+import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from custom_interface.msg import DiceResults
+from custom_interface.msg import DiceResults, CupResult
 from custom_interface.srv import StartRound, GripperCmd
 from custom_interface.action import Movement
 from tf_transformations import euler_from_quaternion
+import transforms3d.quaternions as tq
+from sensor_msgs.msg import JointState
 
+TOOL_OFFSET = 0.13  # meters
 
 class Brain(Node):
     def __init__(self):
@@ -335,6 +36,14 @@ class Brain(Node):
         self.latest_dice = []
         self.create_subscription(DiceResults, '/dice_results', self.dice_callback, 10)
 
+        # ---- Cup subscriber ----
+        self.latest_cup = None
+        self.create_subscription(CupResult, 'cup_result', self.cup_callback, 10)
+
+        # Joint state holder
+        self._current_joints = None
+        self.create_subscription(JointState, "/joint_states", self._joint_states_cb, 10)
+
         # ---- Service ----
         if not self.manual_start:
             self.start_srv = self.create_service(StartRound, '/start_round', self.start_round_callback)
@@ -351,16 +60,14 @@ class Brain(Node):
             self.get_logger().info('Waiting for Gripper Service...')
         self.get_logger().info('✅ Connected to Gripper Service.')
 
-    # ============================================================== #
-    #   CALLBACKS
-    # ============================================================== #
-
     # ================================================================
     #   CALLBACKS
     # ================================================================
     def dice_callback(self, msg):
         self.latest_dice = msg.dice
 
+    def cup_callback(self, msg: CupResult):
+        self.latest_cup = msg
 
     # ================================================================
     #   SERVICE CALLBACK (Migrated from No-CV version)
@@ -384,6 +91,8 @@ class Brain(Node):
         return response
 
     def gripper_command(self, width: int) -> bool:
+
+
         """Send command to gripper via service."""
         req = GripperCmd.Request()
         req.width = width
@@ -392,7 +101,7 @@ class Brain(Node):
         rclpy.spin_until_future_complete(self, future)
         res = future.result()
         
-        time.sleep(5.0)
+        time.sleep(3.0)
         
         if res.success:
             self.get_logger().info(f"Gripper set to width {width}.")
@@ -400,6 +109,17 @@ class Brain(Node):
             self.get_logger().warn(f"Gripper command failed: {res.message}")
 
         return res.success
+
+
+    def _joint_states_cb(self, msg: JointState):
+        # msg.position is a tuple of 6 values (UR5e)
+        self._current_joints = list(msg.position)
+
+    def get_current_joints(self):
+        if self._current_joints is None:
+            self.get_logger().warn("Joint states not received yet.")
+            return None
+        return self._current_joints.copy()
     # ============================================================== #
     #   MANUAL ROUND START
     # ============================================================== #
@@ -421,45 +141,91 @@ class Brain(Node):
     #   ROUND LOGIC (unchanged, but running in thread)
     # ================================================================
     def round_thread(self):
-        self.get_logger().info("Waiting for dice…")
+        self.get_logger().info("🏁 Starting round sequence...")
 
-        # Wait up to 10 seconds for 2 dice
+        self.cup_ready(open_gripper=True)
+
+        # ================================================================
+        # 1) WAIT FOR CUP DETECTION
+        # ================================================================
+        self.get_logger().info("Waiting for cup to be detected...")
         t = 0.0
-        while len(self.latest_dice) != 2 and t < 100.0:
+        while self.latest_cup is None and t < 10.0:
+            time.sleep(0.2)
+            t += 0.2
+
+        if self.latest_cup is None:
+            self.get_logger().warn("Cup not detected — aborting round.")
+            self.round_active = False
+            return
+
+        # ================================================================
+        # 2) PICK UP CUP
+        # ================================================================
+        # store the cup's precise initial world position 
+        self.cup_start_xyz = (
+            self.latest_cup.pose.position.x,
+            self.latest_cup.pose.position.y,
+            self.latest_cup.pose.position.z
+        )
+
+        # ================================================================
+        # 3) EMPTY CUP (flip) and RETURN CUP
+        # ================================================================
+        self.empty_cup()   # flip and return to cup_start_xyz
+
+        # ================================================================
+        # 4) MOVE HOME AFTER CUP RESET
+        # ================================================================
+        self.return_home(open_gripper=True)
+
+        # Give cv 2 seconds to re-detect dice without cup shadow
+        time.sleep(2.0)
+
+        # ================================================================
+        # 5) NOW HANDLE DICE PICKUP / DROP INTO CUP
+        # ================================================================
+        self.get_logger().info("Waiting for dice...")
+        t = 0.0
+        while len(self.latest_dice) != 2 and t < 10.0:
             time.sleep(0.2)
             t += 0.2
 
         if len(self.latest_dice) != 2:
-            self.get_logger().warn(f"Detected {len(self.latest_dice)} dice. Cancelling round.")
+            self.get_logger().warn(f"Only {len(self.latest_dice)} dice detected. Ending round.")
             self.round_active = False
             return
 
-        dice = self.latest_dice
-        values = [d.dice_number for d in dice]
-        total = sum(values)
-
-        self.get_logger().info(f"🎲 Dice rolled {values}, total={total} ({'even' if total%2==0 else 'odd'})")
-
-        # Closed-loop pickup
+        # Sequence: pickup dice -> drop into cup -> home
         while rclpy.ok() and len(self.latest_dice) > 0:
-            d = self.latest_dice[0]
-            self.pickup_dice(d)
-            self.get_logger().info("completed action")
+            dice_msg = self.latest_dice[0]
 
-            time.sleep(1.5)
-            self.get_logger().info(f"{len(self.latest_dice)} dice remaining.")
+            # pickup returns roll/pitch/yaw
+            last_rpy = self.pickup_dice(dice_msg)
 
-        self.get_logger().info("✅ Round complete.")
+            # DROP DICE INTO CUP (NEW: uses dice RPY)
+            self.drop_into_cup(last_rpy)
+
+            # HOME
+            self.return_home(open_gripper=True)
+
+            time.sleep(1.0)
+
+        self.get_logger().info("🎉 Round complete.")
         self.round_active = False
+
 
 
     # ================================================================
     #   DICE PICKUP
     # ================================================================
     def pickup_dice(self, dice_msg):
+        """Pick up a single dice. Returns (roll, pitch, yaw) for later use."""
+        
         self.get_logger().info(f"Picking up dice with value {dice_msg.dice_number}")
         pose = dice_msg.pose
 
+        # ---- Build EE poses ----
         dice = [
             pose.position.x,
             pose.position.y,
@@ -478,61 +244,337 @@ class Brain(Node):
             pose.orientation.z,
             pose.orientation.w,
         ]
+
+        # Extract RPY from dice orientation
         roll, pitch, yaw = euler_from_quaternion(above[3:])
-
         above_pose = [above[0], above[1], above[2], roll, pitch, yaw]
-        dice_pose = [above[0], above[1], above[2], roll, pitch, yaw]
+        dice_pose  = [dice[0],  dice[1],  dice[2],  roll, pitch, yaw]
 
-        # Move above dice
-        # Clear event before sending motion
+        # ---- Move above dice ----
         self._motion_done_event.clear()
         self.send_motion("cartesian", above_pose, "FULL")
+        self._motion_done_event.wait()
+        self.get_logger().info("Reached above dice.")
 
-        # Wait here in background thread (safe!)
-        self._motion_done_event.wait()  # Wait until this motion finishes
-        self.get_logger().info(f"Dice motion finished")
-
-
-        # Move to dice
-        # Clear event before sending motion
+        # ---- Move down onto dice ----
         self._motion_done_event.clear()
         self.send_motion("cartesian", dice_pose, "FULL")
+        self._motion_done_event.wait()
+        self.get_logger().info("Reached dice position.")
 
-        # Wait here in background thread (safe!)
-        self._motion_done_event.wait()  # Wait until this motion finishes
-        self.get_logger().info(f"Dice motion finished")
-
-        # Home        
-        if not self.gripper_command(180):  # Grip Width
-            self.get_logger().warn("Gripper command failed. Skipping pickup.")
+        # ---- Grip dice ----
+        if not self.gripper_command(180):
+            self.get_logger().warn("Gripper failed to close on dice.")
         else:
-            self.get_logger().info("Dice gripped successfully.")
+            self.get_logger().info("Dice gripped.")
 
-        # Return home
-         # Clear event before sending motion
+        # Return the dice orientation for later use in dropping into cup
+        return roll, pitch, yaw
+
+
+    def return_home(self, open_gripper: bool = False):
+        """Return the robot to the standard home joint position."""
+        
+        home_joints = [-1.5708, 0.7679, -0.7679, -1.5708, 0.0, 0.0]
+
+        self.get_logger().info("Returning to home position.")
+
         self._motion_done_event.clear()
-        self.send_motion("joint", [-1.5708, 0.7679, -0.7679, -1.5708, 0.0, 0.0], "NONE")
+        self.send_motion("joint", home_joints, "NONE")
+        self._motion_done_event.wait()
 
-        # Wait here in background thread (safe!)
-        self._motion_done_event.wait()  # Wait until this motion finishes
-        self.get_logger().info(f"Home motion finished")
+        self.get_logger().info("Home motion finished.")
+
+        if open_gripper:
+            if not self.gripper_command(20):
+                self.get_logger().warn("Failed to open gripper at home.")
+            else:
+                self.get_logger().info("Gripper opened at home.")
 
     
-        if not self.gripper_command(40):  # Open gripper
-            self.get_logger().warn("Gripper release command failed.")
-        else:
-            self.get_logger().info("Release complete.")
-       
+    def cup_ready(self, open_gripper: bool = False):
+        """Return the robot to the standard home joint position."""
+        
+        # -88.12, 65.29, 20.54, 38.71, 0, -32.63, 
+        home_joints = [float(-88.12 * math.pi / 180.0), float(65.29 * math.pi / 180.0), float(20.54 * math.pi / 180.0), float(-38.71 * math.pi / 180.0), float(-180 * math.pi / 180.0), float(-32.63 * math.pi / 180.0)]
+
+        self.get_logger().info("Returning to home position.")
+
+        self._motion_done_event.clear()
+        self.send_motion("joint", home_joints, "NONE")
+        self._motion_done_event.wait()
+
+        self.get_logger().info("Home motion finished.")
+
+        if open_gripper:
+            if not self.gripper_command(20):
+                self.get_logger().warn("Failed to open gripper at home.")
+            else:
+                self.get_logger().info("Gripper opened at home.")
+
+    def drop_into_cup(self, last_rpy):
+        if self.cup_start_xyz is None:
+            return
+            
+
+        self.get_logger().info("Dropping dice into cup.")
+
+        roll, pitch, yaw = last_rpy
+
+        clearance = 0.04
+
+        target = [
+            self.cup_start_xyz[0],
+            self.cup_start_xyz[1],
+            self.cup_start_xyz[2] + TOOL_OFFSET + clearance,
+            roll,
+            pitch,
+            yaw
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", target, "FULL")
+        self._motion_done_event.wait()
+
+        # Open gripper (release dice)
+        self.gripper_command(20)
 
 
-        # # Step 1: move above dice
-        # if not self.send_motion("cartesian", cart_pose, "1"):
-        #     self.get_logger().error("Failed to reach above dice.")
-        #     return
+    def empty_cup(self):
+        """Pick up the cup, move it, flip 180° around its own Z axis to empty it,
+        then return it to the start location with safe approach/retreat poses.
+        """
 
-        # # Step 2: return home
-        # home = [-1.3, 1.57, -1.83, -1.57, 0.00, 0.00]
-        # self.send_motion("joint", home, "0")
+        if self.latest_cup is None:
+            self.get_logger().warn("No cup detected for emptying.")
+            return
+
+        self.get_logger().info("Picking up and emptying cup...")
+
+        # ------------------------------------------------------------
+        # Extract cup pose + orientation
+        # ------------------------------------------------------------
+        cup = self.latest_cup.pose
+
+        q_cup = [
+            cup.orientation.x,
+            cup.orientation.y,
+            cup.orientation.z,
+            cup.orientation.w,
+        ]
+
+
+        # Cup RPY
+        cup_roll, cup_pitch, cup_yaw = euler_from_quaternion(q_cup)
+
+        # Tunable heights
+        APPROACH = 0.20   # approach height above grab / place
+        LIFT     = 0.15   # lift height for moving around
+        DUMP_X   = 0.10   # shift along global X to dump
+
+        # ------------------------------------------------------------
+        # Compute grab position along cup's Z axis
+        # ------------------------------------------------------------
+        grab_pos = np.array([
+            cup.position.x,
+            cup.position.y,
+            cup.position.z,
+           ]) 
+        # ]) + TOOL_OFFSET * z_axis
+
+        # Above-grab pose (like dice "above")
+        above_grab_pos = grab_pos + np.array([0.0, 0.0, APPROACH])
+
+        above_grab_pose = [
+            above_grab_pos[0], above_grab_pos[1], above_grab_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        grab_pose = [
+            grab_pos[0], grab_pos[1], grab_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        # ------------------------------------------------------------
+        # 1. Approach from above, then move down and grip
+        # ------------------------------------------------------------
+        # Move above cup
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_grab_pose, "FULL+WRIST1")
+        self._motion_done_event.wait()
+
+        # Move down to grab
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", grab_pose, "FULL+WRIST1")
+        self._motion_done_event.wait()
+
+        # Close gripper
+        self.gripper_command(180)
+
+        # ------------------------------------------------------------
+        # 2. Lift up and move to dump location
+        # ------------------------------------------------------------
+        lift_pos = grab_pos + np.array([0.0, 0.0, LIFT])
+        lift_pose = [
+            lift_pos[0], lift_pos[1], lift_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", lift_pose, "FULL")
+        self._motion_done_event.wait()
+
+        dump_pos = lift_pos + np.array([DUMP_X, 0.0, 0.0])
+        dump_pose = [
+            dump_pos[0], dump_pos[1], dump_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", dump_pose, "FULL")
+        self._motion_done_event.wait()
+
+        self.get_logger().info("Reached dump location.")
+
+        # # ------------------------------------------------------------
+        # # 3. Flip cup 180° around its OWN Z axis
+        # # ------------------------------------------------------------
+        # q_z180 = tq.axangle2quat([0, 0, 1], math.pi)   # 180° about local Z
+        # q_flipped = tq.qmult(q_cup, q_z180)
+
+        # flip_roll, flip_pitch, flip_yaw = euler_from_quaternion(q_flipped)
+
+        # flip_pose = [
+        #     dump_pos[0], dump_pos[1], dump_pos[2],
+        #     flip_roll, flip_pitch, flip_yaw,
+        # ]
+
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", flip_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # time.sleep(1.0)  # allow dice to fall
+
+        # # Optionally rotate back upright at dump location
+        # upright_dump_pose = [
+        #     dump_pos[0], dump_pos[1], dump_pos[2],
+        #     cup_roll, cup_pitch, cup_yaw,
+        # ]
+
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", upright_dump_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # # ------------------------------------------------------------
+        # # 4. Return cup to start location with above/below pattern
+        # # ------------------------------------------------------------
+        # cup_start = np.array(self.cup_start_xyz)
+
+        # # Above the return location
+        # above_return_pos = cup_start + np.array([0.0, 0.0, LIFT])
+        # above_return_pose = [
+        #     above_return_pos[0], above_return_pos[1], above_return_pos[2],
+        #     cup_roll, cup_pitch, cup_yaw,
+        # ]
+
+        # # Move from dump back to above return
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", above_return_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # # Descend to final placement pose
+        # place_pose = [
+        #     cup_start[0], cup_start[1], cup_start[2],
+        #     cup_roll, cup_pitch, cup_yaw,
+        # ]
+
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", place_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # # Open gripper to release cup
+        # self.gripper_command(20)
+
+        # # Retreat back up so home move is clear of the cup
+        # self._motion_done_event.clear()
+        # self.send_motion("cartesian", above_return_pose, "FULL")
+        # self._motion_done_event.wait()
+
+        # self.get_logger().info("Cup emptied and returned, EE retreated above cup.")
+
+        # ------------------------------------------------------------
+        # 3. Flip cup 180° by rotating wrist3 +π
+        # ------------------------------------------------------------
+        
+        self.get_logger().info("Flipping cup by rotating wrist3 180°.")
+        current = self.get_current_joints()
+        if current is None:
+            self.get_logger().error("No joint states available for flip.")
+            return
+
+        # copy
+        target = current.copy()
+
+        # add +π to wrist3 (joint index 5)
+        target[4] += math.pi
+
+        # normalize angle to [-π, +π]
+        target[4] = math.atan2(math.sin(target[4]), math.cos(target[4]))
+
+        # send joint motion
+        self._motion_done_event.clear()
+        self.send_motion("joint", target, "NONE")
+        self._motion_done_event.wait()
+
+        self.get_logger().info("Wrist3 rotated 180° to flip cup.")
+
+        time.sleep(1.0)  # allow dice to fall
+
+        # ------------------------------------------------------------
+        # 4. Return wrist3 to original angle
+        # ------------------------------------------------------------
+        self._motion_done_event.clear()
+        self.send_motion("joint", current, "NONE")
+        self._motion_done_event.wait()
+
+        # ------------------------------------------------------------
+        # 5. Return cup to start location with above/below pattern
+        # ------------------------------------------------------------
+        cup_start = np.array(self.cup_start_xyz)
+
+        # Above the return location
+        above_return_pos = cup_start + np.array([0.0, 0.0, LIFT])
+        above_return_pose = [
+            above_return_pos[0], above_return_pos[1], above_return_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        # Move from dump back to above return
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_return_pose, "FULL")
+        self._motion_done_event.wait()
+
+        # Descend to final placement pose
+        place_pose = [
+            cup_start[0], cup_start[1], cup_start[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", place_pose, "FULL")
+        self._motion_done_event.wait()
+
+        # Open gripper to release cup
+        self.gripper_command(20)
+
+        # Retreat back up so home move is clear of the cup
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_return_pose, "FULL")
+        self._motion_done_event.wait()
+
+        self.get_logger().info("Cup emptied and returned, EE retreated above cup.")
+
+
 
 
     # ================================================================

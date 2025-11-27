@@ -32,6 +32,14 @@ from perception_cv import (
     PIXEL_TO_METERS,
 )
 
+import numpy as np
+from tf_transformations import (
+    quaternion_from_euler,
+    quaternion_multiply,
+    quaternion_conjugate,
+    quaternion_matrix
+)
+
 WINDOW_NAME = "Cup Detection"
 CUP_HALF_HEIGHT = 0.08  # [m] approximate height offset for end-effector above board
 MIN_CONTOUR_AREA = 100  # px^2, filter tiny blobs
@@ -262,15 +270,30 @@ class CupDetector(Node):
         
         # Extract TF quaternion
         q_tf = pose_world.pose.orientation
-        q_tf_np = [q_tf.x, q_tf.y, q_tf.z, q_tf.w]
+        q_tf_np = np.array([q_tf.x, q_tf.y, q_tf.z, q_tf.w])
 
-        # Extra +90° rotation around Y
-        q_extra = quaternion_from_euler(0.0, 3*math.pi/2, 0.0)
+        # ----------------------------------------------------------
+        # 2. Compute world-space offset along LOCAL X
+        # ----------------------------------------------------------
+        offset_local = np.array([0.13, 0.0, 0.0, 0.0])   # homogeneous for matrix mult
+        R_tf = quaternion_matrix(q_tf_np)                # 4×4 transform matrix
 
-        # Compose rotations → q_final = q_tf ⊗ q_extra
+        offset_world = R_tf[:3, :3].dot(offset_local[:3])
+
+        # ----------------------------------------------------------
+        # 3. Apply offset BEFORE extra rotations
+        # ----------------------------------------------------------
+        cup_world.pose.position.x -= offset_world[0]
+        cup_world.pose.position.y -= offset_world[1]
+        cup_world.pose.position.z -= offset_world[2]
+
+
+        # ----------------------------------------------------------
+        # 4. Apply extra correction rotations (unchanged)
+        # ----------------------------------------------------------
+        q_extra = quaternion_from_euler(math.pi/2, math.pi, math.pi/2)
         q_final = quaternion_multiply(q_tf_np, q_extra)
 
-        # Assign back
         cup_world.pose.orientation.x = q_final[0]
         cup_world.pose.orientation.y = q_final[1]
         cup_world.pose.orientation.z = q_final[2]

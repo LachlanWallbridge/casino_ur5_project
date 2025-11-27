@@ -10,7 +10,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.time import Time
 
 
-CAM_HEIGHT_M = 0.92  # 0.9 meters height of camera above world frame
+CAM_HEIGHT_M = 0.92-0.07  # 0.9 meters height of camera above world frame
 
 def broadcast_camera_to_world(node: Node,
                               translation=(0.85, 0.190, CAM_HEIGHT_M),
