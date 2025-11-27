@@ -213,13 +213,14 @@ private:
     if (str_contains(constraint_str, WRIST_1)) {
       moveit_msgs::msg::JointConstraint wrist_constraint;
       wrist_constraint.joint_name = "wrist_1_joint";
-      const double min_angle = -180.0 * M_PI / 180.0;
-      const double max_angle = 0 * M_PI / 180.0;
+      const double min_angle = -90.0 * M_PI / 180.0;
+      const double max_angle = 90.0 * M_PI / 180.0;
       const double mid_angle = (min_angle + max_angle) / 2.0;
       wrist_constraint.position = mid_angle;
       wrist_constraint.tolerance_below = mid_angle - min_angle;
       wrist_constraint.tolerance_above = max_angle - mid_angle;
       wrist_constraint.weight = 1.0;
+      RCLCPP_INFO(node_->get_logger(), "WRIST1 constraint applied.");
       constraints.joint_constraints.push_back(wrist_constraint);
     }
 
@@ -251,6 +252,7 @@ private:
     waypoints.push_back(target_pose_);
 
     moveit_msgs::msg::RobotTrajectory trajectory;
+    
     double fraction = move_group_->computeCartesianPath(waypoints, 0.005, 0.0, trajectory, constraints_, true);
 
     if (fraction < 0.90) {

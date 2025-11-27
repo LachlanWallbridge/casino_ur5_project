@@ -191,7 +191,7 @@ class BrainNode(Node):
             callback_group=self.cb_group
         )
 
-        # --- Joint states (continuous, but cheap) ---
+        # --- Joint states (topic) ---
         self._joint_lock = threading.Lock()
         self._last_joint_state = None
         self.joint_sub = self.create_subscription(
@@ -262,10 +262,14 @@ class BrainNode(Node):
         # Original motions
         # ----------------------------------------------
         self._motions = [
-            ("cartesian", [0.4, 0.2, 0.3, math.pi/2, 0.0, -math.pi], "FULL WRITST1"),  # 0
-            ("cartesian", [0.4, 0.2, 0.1, math.pi/2, 0.0, -math.pi], "FULL WRITST1"),  # 1
-            ("cartesian", [0.4, 0.2, 0.3, math.pi/2, 0.0, -math.pi], "FULL WRITST1"),  # 2
-            ("joint",     [-1.5708, 0.7679, -0.7679, -1.5708, 0.0, 0.0], "NONE"),     # 3 (will become 4)
+            # ("cartesian", [0.4, 0.2, 0.3, math.pi/2, 0.0, -math.pi - math.pi/2], "FULL WRIST1"),  # 0
+            # ("cartesian", [0.4, 0.2, 0.1, math.pi/2, 0.0, -math.pi - math.pi/2], "FULL WRIST1"),  # 1
+            # ("cartesian", [0.4, 0.2, 0.3, math.pi/2, 0.0, -math.pi - math.pi/2], "FULL WRIST1"),  # 2
+            # ("joint",     [-1.5708, 0.7679, -0.7679, -1.5708, 0.0, 0.0], "NONE"),     # 3 (will become 4)
+            ("cartesian", [0.4, 0.2, 0.3, -math.pi/2, 0.0, - math.pi/4], "FULL WRIST1"),  # 0
+            ("cartesian", [0.4, 0.2, 0.1, -math.pi/2, 0.0, - math.pi/4], "FULL WRIST1"),  # 1
+            ("cartesian", [0.4, 0.2, 0.3, -math.pi/2, 0.0, - math.pi/4], "FULL WRIST1"),  # 2
+            ("joint",     [-1.5708, 0.7679, -0.7679, -1.5708, 0.0, 0.0], "NONE"),  # 3 (will become 4)
         ]
 
         # ----------------------------------------------
