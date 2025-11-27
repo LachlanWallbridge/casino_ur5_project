@@ -55,10 +55,10 @@ class Brain(Node):
         self.round_active = False
 
         # ---- Gripper Service ----
-        # self.gripper_client = self.create_client(GripperCmd, 'gripper_cmd')
-        # while not self.gripper_client.wait_for_service(timeout_sec=1.0):
-        #     self.get_logger().info('Waiting for Gripper Service...')
-        # self.get_logger().info('✅ Connected to Gripper Service.')
+        self.gripper_client = self.create_client(GripperCmd, 'gripper_cmd')
+        while not self.gripper_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for Gripper Service...')
+        self.get_logger().info('✅ Connected to Gripper Service.')
 
     # ================================================================
     #   CALLBACKS
@@ -92,8 +92,6 @@ class Brain(Node):
 
     def gripper_command(self, width: int) -> bool:
 
-        time.sleep(3.0)
-        return True
 
         """Send command to gripper via service."""
         req = GripperCmd.Request()
@@ -365,10 +363,6 @@ class Brain(Node):
             cup.orientation.w,
         ]
 
-        # Rotation matrix → cup's local Z axis in world frame
-        R = tq.quat2mat(q_cup)
-        z_axis = R[:, 0]
-        self.get_logger().info(f"Cup Z axis: {z_axis}")
 
         # Cup RPY
         cup_roll, cup_pitch, cup_yaw = euler_from_quaternion(q_cup)
@@ -440,6 +434,8 @@ class Brain(Node):
         self.send_motion("cartesian", dump_pose, "FULL")
         self._motion_done_event.wait()
 
+        self.get_logger().info("Reached dump location.")
+
         # # ------------------------------------------------------------
         # # 3. Flip cup 180° around its OWN Z axis
         # # ------------------------------------------------------------
@@ -509,7 +505,8 @@ class Brain(Node):
         # ------------------------------------------------------------
         # 3. Flip cup 180° by rotating wrist3 +π
         # ------------------------------------------------------------
-
+        
+        self.get_logger().info("Flipping cup by rotating wrist3 180°.")
         current = self.get_current_joints()
         if current is None:
             self.get_logger().error("No joint states available for flip.")
@@ -519,15 +516,17 @@ class Brain(Node):
         target = current.copy()
 
         # add +π to wrist3 (joint index 5)
-        target[5] += math.pi
+        target[4] += math.pi
 
         # normalize angle to [-π, +π]
-        target[5] = math.atan2(math.sin(target[5]), math.cos(target[5]))
+        target[4] = math.atan2(math.sin(target[4]), math.cos(target[4]))
 
         # send joint motion
         self._motion_done_event.clear()
         self.send_motion("joint", target, "NONE")
         self._motion_done_event.wait()
+
+        self.get_logger().info("Wrist3 rotated 180° to flip cup.")
 
         time.sleep(1.0)  # allow dice to fall
 
@@ -538,6 +537,42 @@ class Brain(Node):
         self.send_motion("joint", current, "NONE")
         self._motion_done_event.wait()
 
+        # ------------------------------------------------------------
+        # 5. Return cup to start location with above/below pattern
+        # ------------------------------------------------------------
+        cup_start = np.array(self.cup_start_xyz)
+
+        # Above the return location
+        above_return_pos = cup_start + np.array([0.0, 0.0, LIFT])
+        above_return_pose = [
+            above_return_pos[0], above_return_pos[1], above_return_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        # Move from dump back to above return
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_return_pose, "FULL")
+        self._motion_done_event.wait()
+
+        # Descend to final placement pose
+        place_pose = [
+            cup_start[0], cup_start[1], cup_start[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", place_pose, "FULL")
+        self._motion_done_event.wait()
+
+        # Open gripper to release cup
+        self.gripper_command(20)
+
+        # Retreat back up so home move is clear of the cup
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_return_pose, "FULL")
+        self._motion_done_event.wait()
+
+        self.get_logger().info("Cup emptied and returned, EE retreated above cup.")
 
 
 
