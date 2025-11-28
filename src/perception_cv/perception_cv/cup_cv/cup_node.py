@@ -259,6 +259,7 @@ class CupDetector(Node):
         cup_world.height = int(h)
         cup_world.confidence = 1.0
         cup_world.pose = pose_world.pose
+        cup_world.drop_pose = pose_world.pose
 
         # ----------------------------------------------------------
         # Apply LOCAL offset, then correction rotation
@@ -295,6 +296,7 @@ class CupDetector(Node):
         cup_board.pose.orientation = Quaternion(
             x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3])
         )
+        cup_board.drop_pose = cup_board.pose
 
         # Publish output
         self.cup_pub.publish(cup_world)

@@ -169,6 +169,9 @@ class Brain(Node):
             self.latest_cup.pose.position.z
         )
 
+        # store the cups drop pose for later use
+        self.cup_drop_pose = self.latest_cup.drop_pose
+
         # ================================================================
         # 3) EMPTY CUP (flip) and RETURN CUP
         # ================================================================
@@ -313,7 +316,7 @@ class Brain(Node):
                 self.get_logger().info("Gripper opened at home.")
 
     def drop_into_cup(self, last_rpy):
-        if self.cup_start_xyz is None:
+        if self.cup_drop_pose is None:
             return
             
 
@@ -324,9 +327,9 @@ class Brain(Node):
         clearance = 0.04
 
         target = [
-            self.cup_start_xyz[0],
-            self.cup_start_xyz[1],
-            self.cup_start_xyz[2] + TOOL_OFFSET + clearance,
+            self.cup_drop_pose.position.x,
+            self.cup_drop_pose.position.y,
+            self.cup_drop_pose.position.x + TOOL_OFFSET + clearance,
             roll,
             pitch,
             yaw
