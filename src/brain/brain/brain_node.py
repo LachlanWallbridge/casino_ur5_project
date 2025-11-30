@@ -74,9 +74,9 @@ class Brain(Node):
             callback_group=self.cb_group
         )
 
-        # while not self.gripper_client.wait_for_service(timeout_sec=1.0):
-        #     self.get_logger().info("Waiting for gripper service...")
-        # self.get_logger().info("Connected to gripper service.")
+        while not self.gripper_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info("Waiting for gripper service...")
+        self.get_logger().info("Connected to gripper service.")
 
         # Start-round service
         self.create_service(
