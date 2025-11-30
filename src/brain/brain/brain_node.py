@@ -584,7 +584,28 @@ class Brain(Node):
     # CALLBACKS
     # -----------------------------------------------------------------
     def dice_callback(self, msg):
-        self.latest_dice = msg.dice
+        """Filter dice by bounding box area and confidence."""
+
+        MIN_AREA = 500    # lower bound for bbox area
+        MAX_AREA = 10000   # upper bound for bbox area
+        CONF_THRESH = 0.60 # minimal YOLO confidence
+
+        filtered = []
+
+        for d in msg.dice:
+            area = d.width * d.height
+
+            if area < MIN_AREA or area > MAX_AREA:
+                continue
+
+            if d.confidence < CONF_THRESH:
+                continue
+
+            filtered.append(d)
+
+        self.latest_dice = filtered
+        self.get_logger().info(f"Detected {len(msg.dice)} dice, kept {len(self.latest_dice)} after filtering.")
+
 
     def cup_callback(self, msg):
         self.latest_cup = msg
@@ -673,8 +694,13 @@ class Brain(Node):
                 self.latest_cup.pose.position.z
             )
 
-            # Flip and empty the cup
-            self.empty_cup()
+            # store the cups drop pose for later use
+            self.cup_drop_pose = self.latest_cup.drop_pose
+
+            # ================================================================
+            # 3) EMPTY CUP (flip) and RETURN CUP
+            # ================================================================
+            self.empty_cup()   # flip and return to cup_start_xyz
 
             self.return_home(open_gripper=True)
             time.sleep(2.0)
@@ -808,16 +834,20 @@ class Brain(Node):
         if open_gripper:
             self.gripper_command(20)
 
-    def drop_into_cup(self, rpy):
-        roll, pitch, yaw = rpy
-        if self.cup_start_xyz is None:
+    def drop_into_cup(self, last_rpy):
+        if self.cup_drop_pose is None:
             return
+        self.get_logger().info("Dropping dice into cup.")
+
+        roll, pitch, yaw = last_rpy
+        clearance = 0.04
         target = [
-            self.cup_start_xyz[0],
-            self.cup_start_xyz[1],
-            self.cup_start_xyz[2] + TOOL_OFFSET + 0.04,
+            self.cup_drop_pose.position.x,
+            self.cup_drop_pose.position.y,
+            self.cup_drop_pose.position.x + TOOL_OFFSET + clearance,
             roll, pitch, yaw
         ]
+
         self._motion_done_event.clear()
         self.send_motion("cartesian", target, "FULL")
         self._motion_done_event.wait()
@@ -845,7 +875,7 @@ class Brain(Node):
             (*above_grab, roll, pitch, yaw),
             (*grab,       roll, pitch, yaw),
             (*lift,       roll, pitch, yaw),
-            (*dump,       roll, pitch, yaw),
+            (*dump,       0.0, 0.0, 0.0),           # (*dump,       roll, pitch, yaw)
         ]
 
         for pose in poses:

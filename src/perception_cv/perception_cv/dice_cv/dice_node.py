@@ -17,6 +17,7 @@ from rclpy.time import Time
 import tf2_ros
 from geometry_msgs.msg import PoseStamped
 import rclpy.time
+import numpy as np
 
 
 from perception_cv import pixel_to_board_coords, pixel_to_world_pose, visualise_pose_in_rviz, BOARD_W_MM, BOARD_H_MM, PIXEL_TO_METERS
@@ -120,6 +121,35 @@ class DiceDetector(Node):
                     yaw_rad = -math.radians(angle)
             except Exception as e:
                 self.get_logger().warn(f"Rotation estimation failed: {e}")
+
+
+            # --- Draw rotated bounding box + dice number on the display frame ---
+            bbox_w = x2 - x1
+            bbox_h = y2 - y1
+
+            rot_pts = self.draw_rotated_bbox(
+                frame_full,
+                cx=cx,
+                cy=cy,
+                w=bbox_w,
+                h=bbox_h,
+                yaw_rad=-yaw_rad,
+                color=(0, 0, 255),
+                thickness=2
+            )
+
+            # Dice number drawn at centre
+            cv2.putText(
+                frame_full,
+                (str(dice_num)+str(conf)[1:4]),
+                (int(cx), int(cy)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA
+            )
+
 
             # --- Convert pixel → board coordinates directly (full image space) ---
             x_m, y_m, z_m = pixel_to_board_coords(
@@ -233,6 +263,38 @@ class DiceDetector(Node):
         text2 = f"Total Sum: {total_sum}"
         cv2.putText(frame, text1, (10, img_h - 40), font, 0.6, (0, 0, 0), 2)
         cv2.putText(frame, text2, (10, img_h - 20), font, 0.6, (0, 0, 0), 2)
+
+    def draw_rotated_bbox(self, frame, cx, cy, w, h, yaw_rad, color=(0,0,255), thickness=2):
+        """
+        Draw a rotated bounding box given centre (cx, cy), width, height, and yaw.
+        Width/height from YOLO box (x2-x1, y2-y1).
+        """
+        # Rotation matrix
+        R = cv2.getRotationMatrix2D((cx, cy), -math.degrees(yaw_rad), 1.0)
+
+        # Original rectangle corners (unrotated)
+        rect = np.array([
+            [cx - w/2, cy - h/2],
+            [cx + w/2, cy - h/2],
+            [cx + w/2, cy + h/2],
+            [cx - w/2, cy + h/2]
+        ])
+
+        # Rotate each point
+        rect_rot = []
+        for p in rect:
+            px, py = p
+            x_new = R[0,0]*px + R[0,1]*py + R[0,2]
+            y_new = R[1,0]*px + R[1,1]*py + R[1,2]
+            rect_rot.append([int(x_new), int(y_new)])
+
+        rect_rot = np.array(rect_rot)
+
+        # Draw
+        cv2.polylines(frame, [rect_rot], isClosed=True, color=color, thickness=thickness)
+
+        return rect_rot  # return points in case needed
+
 
     # ----------------------------------------------------------
     def publish_dice_markers(self, dice_results):
