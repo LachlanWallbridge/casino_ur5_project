@@ -565,9 +565,9 @@ class Brain(Node):
             callback_group=self.cb_group
         )
 
-        # while not self.gripper_client.wait_for_service(timeout_sec=1.0):
-        #     self.get_logger().info("Waiting for gripper service...")
-        # self.get_logger().info("Connected to gripper service.")
+        while not self.gripper_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info("Waiting for gripper service...")
+        self.get_logger().info("Connected to gripper service.")
 
         # Start-round service
         self.create_service(
@@ -647,27 +647,27 @@ class Brain(Node):
     # ASYNC GRIPPER COMMAND (NO LOCKS, NO GLOBAL FLAGS)
     # -----------------------------------------------------------------
     def gripper_command(self, width):
-        # req = GripperCmd.Request()
-        # req.width = width
+        req = GripperCmd.Request()
+        req.width = width
 
-        # done = threading.Event()
-        # result_holder = {}
+        done = threading.Event()
+        result_holder = {}
 
-        # def cb(fut):
-        #     try:
-        #         result_holder["ok"] = bool(fut.result().success)
-        #     except:
-        #         result_holder["ok"] = False
-        #     done.set()
+        def cb(fut):
+            try:
+                result_holder["ok"] = bool(fut.result().success)
+            except:
+                result_holder["ok"] = False
+            done.set()
 
-        # future = self.gripper_client.call_async(req)
-        # future.add_done_callback(cb)
+        future = self.gripper_client.call_async(req)
+        future.add_done_callback(cb)
 
-        # done.wait()
-        time.sleep(2.0)  # mechanical settle
+        done.wait()
+        time.sleep(2.25)  # mechanical settle
         self.get_logger().info(f"Gripper done.")
-        # return result_holder["ok"]
-        return True
+        return result_holder["ok"]
+        
 
     # -----------------------------------------------------------------
     # ROUND THREAD — MAIN GAME SEQUENCE
@@ -853,68 +853,203 @@ class Brain(Node):
         self._motion_done_event.wait()
         self.gripper_command(20)
 
+    # def empty_cup(self):
+    #     if self.latest_cup is None:
+    #         self.get_logger().warn("No cup detected.")
+    #         return
+
+    #     p = self.latest_cup.pose
+    #     roll, pitch, yaw = euler_from_quaternion([
+    #         p.orientation.x,
+    #         p.orientation.y,
+    #         p.orientation.z,
+    #         p.orientation.w
+    #     ])
+
+    #     grab = np.array([p.position.x, p.position.y, p.position.z])
+    #     above_grab = grab + [0, 0, 0.15]
+    #     lift = grab + [0, 0, 0.10]
+    #     dump = lift + [0.20, 0, 0]
+
+    #     poses = [
+    #         (*above_grab, roll, pitch, yaw),
+    #         (*grab,       roll, pitch, yaw),
+    #         (*lift,       roll, pitch, yaw),
+    #         (*dump,       roll, pitch, yaw),
+    #     ]
+
+    #     for i, pose in enumerate(poses):
+    #         self._motion_done_event.clear()
+    #         self.send_motion("cartesian", pose, "FULL")
+    #         self._motion_done_event.wait()
+    #         self.get_logger().info(f"Pickup Pose {i} done")
+
+    #     # Wrist twist
+    #     current = self.get_current_joints()
+    #     if current:
+    #         twist = current.copy()
+    #         twist[4] += math.pi * 0.75
+    #         twist[4] = math.atan2(math.sin(twist[4]), math.cos(twist[4]))
+
+    #         self._motion_done_event.clear()
+    #         self.send_motion("joint", twist, "NONE")
+    #         self._motion_done_event.wait()
+
+    #         time.sleep(1.0)
+
+    #         self._motion_done_event.clear()
+    #         self.send_motion("joint", current, "NONE")
+    #         self._motion_done_event.wait()
+
+    #     # Return cup
+    #     cup_xyz = np.array(self.cup_start_xyz)
+    #     above_ret = cup_xyz + [0, 0, 0.10]
+    #     poses = [
+    #         (*above_ret, roll, pitch, yaw),
+    #         (*cup_xyz,   roll, pitch, yaw),
+    #         (*above_ret, roll, pitch, yaw),
+    #     ]
+
+    #     for i, pose in enumerate(poses):
+    #         self._motion_done_event.clear()
+    #         self.send_motion("cartesian", pose, "FULL")
+    #         self._motion_done_event.wait()
+    #         self.get_logger().info(f"Return Pose {i} done")
+
+    #     self.gripper_command(20)
+
     def empty_cup(self):
         if self.latest_cup is None:
-            self.get_logger().warn("No cup detected.")
+            self.get_logger().warn("No cup detected for emptying.")
             return
 
-        p = self.latest_cup.pose
-        roll, pitch, yaw = euler_from_quaternion([
-            p.orientation.x,
-            p.orientation.y,
-            p.orientation.z,
-            p.orientation.w
+        cup = self.latest_cup.pose
+
+        q_cup = [
+            cup.orientation.x,
+            cup.orientation.y,
+            cup.orientation.z,
+            cup.orientation.w,
+        ]
+
+        cup_roll, cup_pitch, cup_yaw = euler_from_quaternion(q_cup)
+
+        APPROACH = 0.15
+        LIFT = 0.10
+        DUMP_X = 0.20
+
+        grab_pos = np.array([
+            cup.position.x,
+            cup.position.y,
+            cup.position.z,
         ])
 
-        grab = np.array([p.position.x, p.position.y, p.position.z])
-        above_grab = grab + [0, 0, 0.15]
-        lift = grab + [0, 0, 0.10]
-        dump = lift + [0.20, 0, 0]
+        above_grab_pos = grab_pos + np.array([0.0, 0.0, APPROACH])
 
-        poses = [
-            (*above_grab, roll, pitch, yaw),
-            (*grab,       roll, pitch, yaw),
-            (*lift,       roll, pitch, yaw),
-            (*dump,       0.0, 0.0, 0.0),           # (*dump,       roll, pitch, yaw)
+        above_grab_pose = [
+            above_grab_pos[0], above_grab_pos[1], above_grab_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
         ]
 
-        for pose in poses:
-            self._motion_done_event.clear()
-            self.send_motion("cartesian", pose, "FULL")
-            self._motion_done_event.wait()
+        grab_pose = [
+            grab_pos[0], grab_pos[1], grab_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
 
-        # Wrist twist
+        # Move above cup
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_grab_pose, "FULL+WRIST1")
+        self._motion_done_event.wait()
+        self.get_logger().info("Above cup position reached.")
+
+        # Move down
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", grab_pose, "FULL+WRIST1")
+        self._motion_done_event.wait()
+        self.get_logger().info("Grab position reached.")
+
+        # Grip
+        self.gripper_command(180)
+        self.get_logger().info("Cup gripped.")
+
+        # Lift
+        lift_pos = grab_pos + np.array([0.0, 0.0, LIFT])
+        lift_pose = [
+            lift_pos[0], lift_pos[1], lift_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", lift_pose, "FULL")
+        self._motion_done_event.wait()
+        self.get_logger().info("Lift position reached.")
+
+        # Dump move
+        dump_pos = lift_pos + np.array([DUMP_X, 0.0, 0.0])
+        dump_pose = [
+            dump_pos[0], dump_pos[1], dump_pos[2],
+            cup_roll, cup_pitch, 0,
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", dump_pose, "FULL")
+        self._motion_done_event.wait()
+        self.get_logger().info("Dump position reached.")
+
+        # Rotate wrist3
         current = self.get_current_joints()
-        if current:
-            twist = current.copy()
-            twist[4] += math.pi * 0.75
-            twist[4] = math.atan2(math.sin(twist[4]), math.cos(twist[4]))
+        if current is None:
+            self.get_logger().error("No joint states available for flip.")
+            return
 
-            self._motion_done_event.clear()
-            self.send_motion("joint", twist, "NONE")
-            self._motion_done_event.wait()
+        target = current.copy()
+        target[4] += math.pi * 3/4
+        target[4] = math.atan2(math.sin(target[4]), math.cos(target[4]))
 
-            time.sleep(1.0)
+        self._motion_done_event.clear()
+        self.send_motion("joint", target, "NONE")
+        self._motion_done_event.wait()
+        self.get_logger().info("Wrist twist completed.")
 
-            self._motion_done_event.clear()
-            self.send_motion("joint", current, "NONE")
-            self._motion_done_event.wait()
+        time.sleep(1.0)
 
-        # Return cup
-        cup_xyz = np.array(self.cup_start_xyz)
-        above_ret = cup_xyz + [0, 0, 0.10]
-        poses = [
-            (*above_ret, roll, pitch, yaw),
-            (*cup_xyz,   roll, pitch, yaw),
-            (*above_ret, roll, pitch, yaw),
+        # Return wrist
+        self._motion_done_event.clear()
+        self.send_motion("joint", current, "NONE")
+        self._motion_done_event.wait()
+        self.get_logger().info("Wrist return completed.")
+
+        # Return cup home
+        cup_start = np.array(self.cup_start_xyz)
+
+        above_return_pos = cup_start + np.array([0.0, 0.0, LIFT])
+        above_return_pose = [
+            above_return_pos[0], above_return_pos[1], above_return_pos[2],
+            cup_roll, cup_pitch, cup_yaw,
         ]
 
-        for pose in poses:
-            self._motion_done_event.clear()
-            self.send_motion("cartesian", pose, "FULL")
-            self._motion_done_event.wait()
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_return_pose, "FULL")
+        self._motion_done_event.wait()
+        self.get_logger().info("Above return position reached.")
+
+        place_pose = [
+            cup_start[0], cup_start[1], cup_start[2],
+            cup_roll, cup_pitch, cup_yaw,
+        ]
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", place_pose, "FULL")
+        self._motion_done_event.wait()
+        self.get_logger().info("Place position reached.")
 
         self.gripper_command(20)
+        self.get_logger().info("Cup released.")
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_return_pose, "FULL")
+        self._motion_done_event.wait()
+        self.get_logger().info("Above return position reached.")
 
 
 # -----------------------------------------------------------------

@@ -180,7 +180,7 @@ class CupDetector(Node):
 
         cv2.drawContours(frame_full, [box_full], 0, (0, 255, 0), 2)
         cv2.circle(frame_full, (cx_full, cy_full), 6, (0, 0, 255), -1)
-        
+
         # ----------------------------------------------------------
         # Orientation from PCA (robust to perspective)
         # ----------------------------------------------------------
@@ -280,8 +280,12 @@ class CupDetector(Node):
         q_tf = cup_world.pose.orientation
         q_tf_np = np.array([q_tf.x, q_tf.y, q_tf.z, q_tf.w])
 
-        offset_local = np.array([0.13, 0.0, 0.0, 0.0]) 
-        R_tf = quaternion_matrix(q_tf_np)
+        # ----------------------------------------------------------
+        # 2. Compute world-space offset along LOCAL X
+        # ----------------------------------------------------------
+        offset_local = np.array([0.15, 0.0, 0.0, 0.0])   # homogeneous for matrix mult
+        R_tf = quaternion_matrix(q_tf_np)                # 4×4 transform matrix
+
         offset_world = R_tf[:3, :3].dot(offset_local[:3])
 
         cup_world.pose.position.x -= offset_world[0]
