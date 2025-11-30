@@ -299,8 +299,20 @@ class DiceDetector(Node):
     # ----------------------------------------------------------
     def publish_dice_markers(self, dice_results):
         """Publish dice detections as cube + text markers in the board_frame."""
+
+        # 1) CLEAR ALL PREVIOUS MARKERS
+        delete_all = Marker()
+        delete_all.action = Marker.DELETEALL
+        delete_all.header.frame_id = "board_frame"
+        delete_all.header.stamp = Time().to_msg()
+
+        clear_array = MarkerArray()
+        clear_array.markers.append(delete_all)
+        self.marker_pub.publish(clear_array)
+
+        # 2) NOW PUBLISH THE NEW MARKERS
         marker_array = MarkerArray()
-        zero_stamp = Time().to_msg()  # always use latest TF
+        zero_stamp = Time().to_msg()
 
         for i, dr in enumerate(dice_results):
             # --- Cube marker ---
@@ -321,12 +333,12 @@ class DiceDetector(Node):
             cube.color.a = 1.0
             marker_array.markers.append(cube)
 
-            # --- Text marker (dice number) ---
+            # --- Text marker ---
             text = Marker()
             text.header.frame_id = "board_frame"
             text.header.stamp = zero_stamp
             text.ns = "dice_text"
-            text.id = i + 100  # offset to avoid ID clash
+            text.id = i + 100
             text.type = Marker.TEXT_VIEW_FACING
             text.action = Marker.ADD
             text.pose.position.x = dr.pose.position.x
@@ -341,6 +353,7 @@ class DiceDetector(Node):
             marker_array.markers.append(text)
 
         self.marker_pub.publish(marker_array)
+
 
 
 # ----------------------------------------------------------
