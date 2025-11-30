@@ -8,16 +8,15 @@ import {
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 // ====== CONFIG ======
-// ====== CONFIG ======
-// Set your actual chip values here:
 const COLOR_VALUE = {
-  red:   10,
+  red:   100,
   white: 10,
-  blue:  10,
-  green: 10,
+  blue:  20,
+  green: 50,
 };
 
-function Board({ players = [] }) {
+
+function Board({ players = [], refreshBackendStats, onRoundStateChange }) {
     const [roundActive, setRoundActive] = useState(false);
     const [resultText, setResultText] = useState('');
     const [dice, setDice] = useState([]);
@@ -35,6 +34,10 @@ function Board({ players = [] }) {
         () => dice.reduce((s, d) => s + (d?.dice_number || 0), 0),
         [dice]
     );
+
+    const allPlayersHaveBets = players.length > 0 &&
+        players.every((p) => p.bet_ui === "odd" || p.bet_ui === "even");
+
     const diceParityLabel = useMemo(() => {
         if (!dice.length) return '—';
         return diceSum % 2 === 0 ? 'EVEN' : 'ODD';
@@ -46,25 +49,36 @@ function Board({ players = [] }) {
             if (!msg || !msg.is_complete) return;
 
             setRoundActive(false);
+            onRoundStateChange && onRoundStateChange(false);
+
             const isOdd = diceSum % 2 === 1;
             const label = isOdd ? 'ODD' : 'EVEN';
             setResultText(`Result: ${label}`);
 
             try {
+                // do payouts
                 await settleAllPlayers(players, isOdd);
+
+                // refresh backend stats (balances, games)
+                if (refreshBackendStats) {
+                    refreshBackendStats();
+                }
             } catch (err) {
                 console.error('Payout error:', err);
             }
         });
         return () => unsub();
-    }, [diceSum, players]);
+    }, [diceSum, players, refreshBackendStats]);
 
     const startGame = () => {
         setRoundActive(true);
+        onRoundStateChange && onRoundStateChange(true);
+
         setResultText('');
         callStartRoundService((resp) => {
             if (!resp || !resp.accepted) {
                 setRoundActive(false);
+                onRoundStateChange && onRoundStateChange(false);
                 alert('Round not accepted: ' + (resp?.message || 'unknown error'));
             }
         });
@@ -88,6 +102,27 @@ function Board({ players = [] }) {
         position: 'relative',
         overflow: 'hidden',
     };
+
+    // Add pulse animation dynamically
+    const pulseStyle = `
+    @keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 12px rgba(255,215,0,0.4);
+    }
+    50% {
+        box-shadow: 0 0 28px rgba(255,215,0,1);
+    }
+    100% {
+        box-shadow: 0 0 12px rgba(255,215,0,0.4);
+    }
+    }
+    `;
+    useEffect(() => {
+        const styleEl = document.createElement("style");
+        styleEl.innerHTML = pulseStyle;
+        document.head.appendChild(styleEl);
+        return () => document.head.removeChild(styleEl);
+    }, []);
 
     const feltOverlay = {
         content: "''",
@@ -117,26 +152,30 @@ function Board({ players = [] }) {
                     🎲 Place Your Bets
                 </h2>
 
-                {/* Dice */}
-                <div className="d-flex align-items-center gap-3 mt-3">
-                    {dice.length ? (
-                        dice.map((d, i) => (
-                            <DiceTile key={i} value={d.dice_number} conf={d.confidence} />
-                        ))
-                    ) : (
-                        <span className="text-light">Waiting for dice…</span>
-                    )}
-                </div>
+                {/* Dice (only visible during active round) */}
+                {roundActive && (
+                    <div className="d-flex align-items-center gap-3 mt-3">
+                        {dice.length ? (
+                            dice.map((d, i) => (
+                                <DiceTile key={i} value={d.dice_number} conf={d.confidence} />
+                            ))
+                        ) : (
+                            <span className="text-light">Waiting for dice…</span>
+                        )}
+                    </div>
+                )}
 
-                {/* Sum / parity */}
-                <div className="mt-3" style={{ fontSize: '1.2rem' }}>
-                    Sum: <strong>{dice.length ? diceSum : '—'}</strong> &nbsp;|&nbsp; Parity:{' '}
-                    <strong>{diceParityLabel}</strong>
-                </div>
+                {/* Sum / parity (only during active round) */}
+                {roundActive && (
+                    <div className="mt-3" style={{ fontSize: '1.2rem' }}>
+                        Sum: <strong>{dice.length ? diceSum : '—'}</strong> &nbsp;|&nbsp; Parity:{' '}
+                        <strong>{diceParityLabel}</strong>
+                    </div>
+                )}
 
                 {/* Round status */}
                 <p style={{ fontSize: '1.2rem', color: '#eaeaea', marginTop: '0.75rem' }}>
-                    {resultText || (roundActive ? 'Round in progress...' : 'Ready to start!')}
+                    {resultText || (roundActive ? 'Round in progress...' : 'Awaiting players...')}
                 </p>
 
                 {/* Start button */}
@@ -145,17 +184,23 @@ function Board({ players = [] }) {
                         variant="warning"
                         size="lg"
                         className="mt-3"
+                        disabled={!allPlayersHaveBets}
                         style={{
                             fontWeight: 'bold',
                             fontSize: '1.5rem',
                             padding: '0.6em 1.6em',
                             borderRadius: '12px',
-                            boxShadow: '0 0 15px rgba(255,215,0,0.4)',
                             color: '#222',
+                            opacity: !allPlayersHaveBets ? 0.5 : 1,
+                            cursor: !allPlayersHaveBets ? 'not-allowed' : 'pointer',
+                            transition: 'opacity 0.2s',
+
+                            // Pulsing animation
+                            animation: allPlayersHaveBets ? "pulseGlow 1.6s infinite ease-in-out" : "none",
                         }}
-                        onClick={startGame}
+                        onClick={allPlayersHaveBets ? startGame : undefined}
                     >
-                        Start Game
+                        {allPlayersHaveBets ? "Start Game" : "Waiting for bets..."}
                     </Button>
                 )}
             </div>
@@ -201,14 +246,10 @@ async function settleAllPlayers(players, isOdd) {
   await Promise.all(tasks);
 }
 
-// Reads bet parity robustly from player object.
-// Accepts: player.bet_parity = "odd" | "even"  OR player.bet_is_odd = boolean
-function readPlayerBetParity(player) {
-  if (typeof player?.bet_is_odd === 'boolean') return player.bet_is_odd;
-  const s = (player?.bet_parity || '').toString().toLowerCase();
-  if (s === 'odd') return true;
-  if (s === 'even') return false;
-  return null; // unknown
+function readPlayerBetFromUI(player) {
+    if (player.bet_ui === "odd") return true;
+    if (player.bet_ui === "even") return false;
+    return null;
 }
 
 function computeWagerFromColors(colors) {
@@ -219,7 +260,7 @@ function computeWagerFromColors(colors) {
 
 async function settleOnePlayer(player, isOdd) {
   // Read the player's declared bet side
-  const playerBetIsOdd = readPlayerBetParity(player);
+  const playerBetIsOdd = readPlayerBetFromUI(player);
   if (playerBetIsOdd === null) {
     console.warn(`Player ${player?.player_id}: no bet parity set; skipping payout.`);
     return;

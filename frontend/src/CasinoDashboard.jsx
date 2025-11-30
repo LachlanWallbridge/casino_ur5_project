@@ -3,7 +3,13 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import Board from './Board';
 import PlayerCard from './PlayerCard';
 
-function CasinoDashboard({ players }) {
+function CasinoDashboard({
+    players,
+    onBetChange,
+    refreshBackendStats,
+    roundActive,
+    onRoundStateChange
+}) {
     return (
         <div
             className="container-fluid vh-100 d-flex flex-column p-0"
@@ -44,7 +50,11 @@ function CasinoDashboard({ players }) {
                         marginRight: '15px',
                     }}
                 >
-                    <Board />
+                    <Board
+                        players={players}
+                        refreshBackendStats={refreshBackendStats}
+                        onRoundStateChange={onRoundStateChange}
+                    />
                 </div>
 
                 {/* Players sidebar (30%) */}
@@ -69,7 +79,11 @@ function CasinoDashboard({ players }) {
                                     justifyContent: 'center',
                                 }}
                             >
-                                <PlayerCard player={p} />
+                                <PlayerCard
+                                    player={p}
+                                    onBetChange={onBetChange}
+                                    roundActive={roundActive}
+                                />
                             </div>
                         ))
                     ) : (
