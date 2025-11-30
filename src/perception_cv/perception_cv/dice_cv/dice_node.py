@@ -264,6 +264,7 @@ class DiceDetector(Node):
         cv2.putText(frame, text1, (10, img_h - 40), font, 0.6, (0, 0, 0), 2)
         cv2.putText(frame, text2, (10, img_h - 20), font, 0.6, (0, 0, 0), 2)
 
+    # ----------------------------------------------------------
     def draw_rotated_bbox(self, frame, cx, cy, w, h, yaw_rad, color=(0,0,255), thickness=2):
         """
         Draw a rotated bounding box given centre (cx, cy), width, height, and yaw.
