@@ -24,11 +24,11 @@ def generate_launch_description():
             name='player_cv',
             output='screen'
         ),
-        # Node(
-        #     package='perception_cv',
-        #     executable='cup_cv',
-        #     name='cup_cv',
-        #     output='screen'
-        # ),
+        Node(
+            package='perception_cv',
+            executable='cup_cv',
+            name='cup_cv',
+            output='screen'
+        ),
         
     ])
