@@ -119,8 +119,8 @@ def generate_launch_description():
     ]
 
     # Only add camera launch if using real hardware
-    #if not use_fake:
+    if not use_fake:
         #launch_description.append(get_realsense_launch())
-        #launch_description.append(get_auxiliary_launch())
+        launch_description.append(get_auxiliary_launch())
 
     return LaunchDescription(launch_description)

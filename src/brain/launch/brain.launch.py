@@ -39,24 +39,36 @@ def generate_launch_description():
             output="screen"
         )
 
-        # # -----------------------------------
-        # # Optional frontend/backend terminals
-        # # -----------------------------------
-        # optional_processes = []
-        # if frontend_enabled:
-        #     backend = ExecuteProcess(
-        #         cmd=['bash', '-c', 'cd ~/path/to/backend && uvicorn api:app --reload --port 8000'],
-        #         output='screen'
-        #     )
+        # -----------------------------------
+        # Optional frontend/backend terminals
+        # -----------------------------------
+        optional_processes = []
+        if frontend_enabled:
+            backend_cmd = ExecuteProcess(
+                cmd=[
+                    "/usr/bin/gnome-terminal",
+                    "--",
+                    "bash", "-c",
+                    "cd backend && uvicorn api:app --reload --port 8000; exec bash"
+                ],
+                output="screen"
+            )
+
+            frontend_cmd = ExecuteProcess(
+                cmd=[
+                    "/usr/bin/gnome-terminal",
+                    "--",
+                    "bash", "-c",
+                    "cd frontend && npm start; exec bash"
+                ],
+                output="screen"
+            )
+
+            optional_processes.extend([backend_cmd, frontend_cmd])
+
  
-        #     frontend_proc = ExecuteProcess(
-        #         cmd=['bash', '-c', 'cd ~/path/to/frontend && npm start'],
-        #         output='screen'
-        #     )
- 
-        #     optional_processes.extend([backend, frontend_proc])
- 
-        return [brain_node, rosbridge_proc] # + optional_processes
+        return [brain_node, rosbridge_proc] + optional_processes
+    
     return LaunchDescription([
         frontend_arg,
         OpaqueFunction(function=launch_setup)
