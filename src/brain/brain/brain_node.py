@@ -74,9 +74,9 @@ class Brain(Node):
             callback_group=self.cb_group
         )
 
-        while not self.gripper_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("Waiting for gripper service...")
-        self.get_logger().info("Connected to gripper service.")
+        # while not self.gripper_client.wait_for_service(timeout_sec=1.0):
+        #     self.get_logger().info("Waiting for gripper service...")
+        # self.get_logger().info("Connected to gripper service.")
 
         # Start-round service
         self.create_service(
@@ -96,13 +96,14 @@ class Brain(Node):
         """Filter dice by bounding box area and confidence."""
 
         MIN_AREA = 500    # lower bound for bbox area
-        MAX_AREA = 10000   # upper bound for bbox area
+        MAX_AREA = 1500   # upper bound for bbox area
         CONF_THRESH = 0.60 # minimal YOLO confidence
 
         filtered = []
 
         for d in msg.dice:
             area = d.width * d.height
+            self.get_logger().debug(f"Dice {d.dice_number}: area={area}, conf={d.confidence}")
 
             if area < MIN_AREA or area > MAX_AREA:
                 continue
@@ -113,7 +114,7 @@ class Brain(Node):
             filtered.append(d)
 
         self.latest_dice = filtered
-        self.get_logger().info(f"Detected {len(msg.dice)} dice, kept {len(self.latest_dice)} after filtering.")
+        self.get_logger().debug(f"Detected {len(msg.dice)} dice, kept {len(self.latest_dice)} after filtering.")
 
 
     def cup_callback(self, msg):
