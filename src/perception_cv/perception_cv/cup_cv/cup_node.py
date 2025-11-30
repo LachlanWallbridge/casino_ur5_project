@@ -88,15 +88,12 @@ class CupDetector(Node):
         img_h, img_w = frame_full.shape[:2]
 
         # ----------------------------------------------------------
-        # Crop region where cup is expected (adapted from your script)
-        #   warped = img[0:150, 50:(765-50)]
-        # Here we generalise to current image width:
+        # Crop region where cup is expected
         # ----------------------------------------------------------
         pad_x = 50
         y_top = 0
         y_bottom = min(150, img_h)
-
-        cropped = frame_full[y_top:y_bottom, pad_x : img_w - pad_x]
+        cropped = frame_full[y_top:y_bottom, pad_x:img_w - pad_x]
 
         if cropped.size == 0:
             self.get_logger().warn("Cropped region is empty, skipping frame.")
@@ -106,39 +103,36 @@ class CupDetector(Node):
         # HSV threshold for yellow cup
         # ----------------------------------------------------------
         hsv = cv2.cvtColor(cropped, cv2.COLOR_BGR2HSV)
-
-        lower_yellow = np.array([35, 50, 100], dtype=np.uint8)
-        upper_yellow = np.array([90, 110, 255], dtype=np.uint8)
+        lower_yellow = np.array([0, 0, 80], dtype=np.uint8)
+        upper_yellow = np.array([90, 180, 255], dtype=np.uint8)
 
         mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+        mask_vis = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        cv2.imshow("Cup Mask", mask_vis)
 
-        # Optional: small morphology to clean noise
+        # Morphological noise cleanup
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
         # ----------------------------------------------------------
-        # Find contours of yellow region
+        # Find contours
         # ----------------------------------------------------------
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # Debug image (BGR) to draw centroid + box
         debug_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
         if not contours:
             self.get_logger().info("No yellow contours found.")
-            self.cup_pub.publish(CupResult())  # publish empty
+            self.cup_pub.publish(CupResult())
             cv2.imshow(WINDOW_NAME, frame_full)
             return
 
-        # Pick the largest contour above area threshold
+        # Largest contour above area threshold
         largest_cnt = None
         largest_area = 0.0
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            if area < MIN_CONTOUR_AREA:
-                continue
-            if area > largest_area:
+            if area > MIN_CONTOUR_AREA and area > largest_area:
                 largest_area = area
                 largest_cnt = cnt
 
@@ -149,85 +143,99 @@ class CupDetector(Node):
             return
 
         # ----------------------------------------------------------
-        # Bounding box + centroid (in CROPPED coordinates)
+        # Bounding box + centroid (CROPPED coords)
         # ----------------------------------------------------------
         x, y, w, h = cv2.boundingRect(largest_cnt)
-        moments = cv2.moments(largest_cnt)
-        if moments["m00"] != 0:
-            cX = int(moments["m10"] / moments["m00"])
-            cY = int(moments["m01"] / moments["m00"])
+        M = cv2.moments(largest_cnt)
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
         else:
-            # fallback: box centre
             cX = x + w // 2
             cY = y + h // 2
 
-        # Draw in cropped debug image
-        cv2.rectangle(debug_bgr, (x, y), (x + w, y + h), (0, 0, 255), 2)
-        cv2.circle(debug_bgr, (cX, cY), 5, (0, 0, 255), -1)
-
         # ----------------------------------------------------------
-        # Orientation from minAreaRect (in CROPPED coordinates)
+        # MinAreaRect (must come BEFORE using `box`)
         # ----------------------------------------------------------
         rect = cv2.minAreaRect(largest_cnt)
         box = cv2.boxPoints(rect)
         box = np.int32(box)
 
-        # Draw rotated rectangle
+        # Draw rotated box on cropped debug image
         cv2.drawContours(debug_bgr, [box], 0, (0, 255, 0), 2)
-
-        # Determine longer side to compute orientation
-        d1 = np.linalg.norm(box[0] - box[1])
-        d2 = np.linalg.norm(box[1] - box[2])
-        if d1 >= d2:
-            pt1, pt2 = box[0], box[1]
-        else:
-            pt1, pt2 = box[1], box[2]
-
-        dx = float(pt2[0] - pt1[0])
-        dy = float(pt2[1] - pt1[1])
-
-        angle_deg = math.degrees(math.atan2(dy, dx))  # [-180, 180]
-        if angle_deg < 0:
-            angle_deg += 360
-        if angle_deg > 180:
-            angle_deg -= 180
-
-        yaw_rad = math.radians(angle_deg)*-1
-
-        self.get_logger().info(
-            f"Cup centroid (cropped): ({cX}, {cY}), "
-            f"bbox {w}x{h}, orientation ~ {angle_deg:.2f}°"
-        )
+        cv2.circle(debug_bgr, (cX, cY), 4, (0, 0, 255), -1)
 
         # ----------------------------------------------------------
-        # Convert CROPPED centroid → FULL image pixel coordinates
+        # Convert centroid → FULL coords
         # ----------------------------------------------------------
         cx_full = cX + pad_x
         cy_full = cY + y_top
 
-        # Draw on full frame for debug (box & centroid)
+        # ----------------------------------------------------------
+        # Shift rotated box → FULL coords
+        # ----------------------------------------------------------
+        box_full = box.copy()
+        box_full[:, 0] += pad_x
+        box_full[:, 1] += y_top
+
+        cv2.drawContours(frame_full, [box_full], 0, (0, 255, 0), 2)
         cv2.circle(frame_full, (cx_full, cy_full), 6, (0, 0, 255), -1)
-        cv2.rectangle(
-            frame_full,
-            (x + pad_x, y + y_top),
-            (x + pad_x + w, y + y_top + h),
-            (0, 0, 255),
-            2,
+
+        # ----------------------------------------------------------
+        # Orientation from PCA (robust to perspective)
+        # ----------------------------------------------------------
+        pts = largest_cnt.reshape(-1, 2).astype(np.float32)
+
+        # Compute PCA on contour points
+        mean, eigenvectors = cv2.PCACompute(pts, mean=None)
+
+        # Major axis (first eigenvector)
+        major_axis = eigenvectors[0]   # unit vector [vx, vy]
+
+        # Angle of major axis
+        angle_rad = math.atan2(major_axis[1], major_axis[0])
+        angle_deg = math.degrees(angle_rad)
+
+        # Normalize angle to 0–180 range
+        if angle_deg < 0:
+            angle_deg += 180
+
+        yaw_rad = -math.radians(angle_deg)   # keep your original yaw convention
+
+        self.get_logger().info(
+            f"Cup centroid (cropped): ({cX}, {cY}), "
+            f"bbox {w}x{h}, PCA orientation ~ {angle_deg:.2f}°"
         )
 
         # ----------------------------------------------------------
-        # Pixel → board frame coordinates (in metres)
+        # Draw orientation arrow on FULL image
+        # ----------------------------------------------------------
+        scale = 40
+        vx, vy = major_axis
+        end_x = int(cx_full + vx * scale)
+        end_y = int(cy_full + vy * scale)
+
+        cv2.arrowedLine(
+            frame_full,
+            (cx_full, cy_full),
+            (end_x, end_y),
+            (255, 0, 0),
+            2,
+            tipLength=0.2
+        )
+
+
+        # ----------------------------------------------------------
+        # Pixel → board coords
         # ----------------------------------------------------------
         x_m, y_m, z_m = pixel_to_board_coords(
-            x_px=cx_full,
-            y_px=cy_full,
-            img_w=img_w,
-            img_h=img_h,
+            x_px=cx_full, y_px=cy_full,
+            img_w=img_w, img_h=img_h,
             z_offset=CUP_HALF_HEIGHT,
         )
 
         # ----------------------------------------------------------
-        # Pixel → world frame (through TF), as PointStamped
+        # Pixel → world pose via TF
         # ----------------------------------------------------------
         pose_world = pixel_to_world_pose(
             tf_buffer=self.tf_buffer,
@@ -237,7 +245,7 @@ class CupDetector(Node):
             img_w=img_w,
             img_h=img_h,
             yaw_rad=yaw_rad,
-            node=self
+            node=self,
         )
 
         if pose_world is None:
@@ -246,6 +254,7 @@ class CupDetector(Node):
             cv2.imshow(WINDOW_NAME, frame_full)
             return
 
+        # Logging world position
         self.get_logger().info(
             f"Cup board position: ({x_m:.3f}, {y_m:.3f}, {z_m:.3f}), "
             f"world position: ({pose_world.pose.position.x:.3f}, "
@@ -254,22 +263,21 @@ class CupDetector(Node):
         )
 
         # ----------------------------------------------------------
-        # Build CupResult (WORLD frame pose)
+        # Build CupResult (WORLD)
         # ----------------------------------------------------------
         cup_world = CupResult()
         cup_world.x = int(x + pad_x)
         cup_world.y = int(y + y_top)
         cup_world.width = int(w)
         cup_world.height = int(h)
-
-        # Colour-based detector → treat as "confident" for now
         cup_world.confidence = 1.0
-
-
         cup_world.pose = pose_world.pose
-        
-        # Extract TF quaternion
-        q_tf = pose_world.pose.orientation
+        cup_world.drop_pose = pose_world.pose
+
+        # ----------------------------------------------------------
+        # Apply LOCAL offset, then correction rotation
+        # ----------------------------------------------------------
+        q_tf = cup_world.pose.orientation
         q_tf_np = np.array([q_tf.x, q_tf.y, q_tf.z, q_tf.w])
 
         # ----------------------------------------------------------
@@ -280,27 +288,22 @@ class CupDetector(Node):
 
         offset_world = R_tf[:3, :3].dot(offset_local[:3])
 
-        # ----------------------------------------------------------
-        # 3. Apply offset BEFORE extra rotations
-        # ----------------------------------------------------------
         cup_world.pose.position.x -= offset_world[0]
         cup_world.pose.position.y -= offset_world[1]
         cup_world.pose.position.z -= offset_world[2]
 
-
-        # ----------------------------------------------------------
-        # 4. Apply extra correction rotations (unchanged)
-        # ----------------------------------------------------------
         q_extra = quaternion_from_euler(math.pi/2, math.pi, math.pi/2)
         q_final = quaternion_multiply(q_tf_np, q_extra)
 
-        cup_world.pose.orientation.x = q_final[0]
-        cup_world.pose.orientation.y = q_final[1]
-        cup_world.pose.orientation.z = q_final[2]
-        cup_world.pose.orientation.w = q_final[3]
+        cup_world.pose.orientation = Quaternion(
+            x=float(q_final[0]),
+            y=float(q_final[1]),
+            z=float(q_final[2]),
+            w=float(q_final[3])
+        )
 
         # ----------------------------------------------------------
-        # Build a board-frame version for RViz markers
+        # Board-frame copy for markers
         # ----------------------------------------------------------
         cup_board = CupResult()
         q = quaternion_from_euler(math.pi, 0.0, yaw_rad)
@@ -308,41 +311,31 @@ class CupDetector(Node):
         cup_board.pose.position.y = y_m
         cup_board.pose.position.z = z_m
         cup_board.pose.orientation = Quaternion(
-            x=float(q[0]),
-            y=float(q[1]),
-            z=float(q[2]),
-            w=float(q[3]),
+            x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3])
         )
+        cup_board.drop_pose = cup_board.pose
 
-        # ----------------------------------------------------------
-        # Publish results + markers
-        # ----------------------------------------------------------
+        # Publish output
         self.cup_pub.publish(cup_world)
-
-        # Visualise cup
         self.publish_cup_markers([cup_board])
-        
-        # ----------- Visualise pose ---------------
-        # Wrap cup_world.pose into a PoseStamped
+
+        # Visualise pose in RViz
         viz_pose = PoseStamped()
-        viz_pose.header.frame_id = "world"   # IMPORTANT
+        viz_pose.header.frame_id = "world"
         viz_pose.header.stamp = rclpy.time.Time().to_msg()
         viz_pose.pose = cup_world.pose
         visualise_pose_in_rviz(
             node=self,
             poses=viz_pose,
             marker_pub=self.ee_marker_pub,
-            scale=0.1  # 10 cm axes
+            scale=0.1
         )
 
-
         # ----------------------------------------------------------
-        # Debug views
+        # Debug view
         # ----------------------------------------------------------
-        # Optional: show cropped debug window with mask/box/centroid
-        # cv2.imshow("Cup Cropped Debug", debug_bgr)
-
         cv2.imshow(WINDOW_NAME, frame_full)
+
 
 
     # ==============================================================
