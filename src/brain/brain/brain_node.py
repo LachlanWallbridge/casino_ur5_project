@@ -354,7 +354,7 @@ class Brain(Node):
         target = [
             self.cup_drop_pose.position.x,
             self.cup_drop_pose.position.y,
-            self.cup_drop_pose.position.x + TOOL_OFFSET + clearance,
+            self.cup_drop_pose.position.z + TOOL_OFFSET + clearance,
             roll, pitch, yaw
         ]
 
@@ -381,7 +381,7 @@ class Brain(Node):
 
         APPROACH = 0.15
         LIFT = 0.10
-        DUMP_X = 0.20
+        DUMP_X = 0.10
 
         grab_pos = np.array([
             cup.position.x,
@@ -433,7 +433,7 @@ class Brain(Node):
         dump_pos = lift_pos + np.array([DUMP_X, 0.0, 0.0])
         dump_pose = [
             dump_pos[0], dump_pos[1], dump_pos[2],
-            cup_roll, cup_pitch, 0,
+            cup_roll, cup_pitch, 0.0,
         ]
 
         self._motion_done_event.clear()

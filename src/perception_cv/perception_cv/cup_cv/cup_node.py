@@ -181,48 +181,65 @@ class CupDetector(Node):
         cv2.drawContours(frame_full, [box_full], 0, (0, 255, 0), 2)
         cv2.circle(frame_full, (cx_full, cy_full), 6, (0, 0, 255), -1)
 
+
+
         # ----------------------------------------------------------
-        # Orientation from PCA (robust to perspective)
+
+        # Orientation from longest box edge
+
         # ----------------------------------------------------------
-        pts = largest_cnt.reshape(-1, 2).astype(np.float32)
 
-        # Compute PCA on contour points
-        mean, eigenvectors = cv2.PCACompute(pts, mean=None)
+        d1 = np.linalg.norm(box[0] - box[1])
 
-        # Major axis (first eigenvector)
-        major_axis = eigenvectors[0]   # unit vector [vx, vy]
+        d2 = np.linalg.norm(box[1] - box[2])
 
-        # Angle of major axis
-        angle_rad = math.atan2(major_axis[1], major_axis[0])
-        angle_deg = math.degrees(angle_rad)
+        pt1, pt2 = (box[0], box[1]) if d1 >= d2 else (box[1], box[2])
 
-        # Normalize angle to 0–180 range
+
+
+        dx = float(pt2[0] - pt1[0])
+
+        dy = float(pt2[1] - pt1[1])
+
+
+
+        angle_deg = math.degrees(math.atan2(dy, dx))
+
         if angle_deg < 0:
-            angle_deg += 180
 
-        yaw_rad = -math.radians(angle_deg)   # keep your original yaw convention
+            angle_deg += 360
+
+        if angle_deg > 180:
+
+            angle_deg -= 180
+
+
+
+        yaw_rad = math.radians(angle_deg) * -1
+
+
 
         self.get_logger().info(
+
             f"Cup centroid (cropped): ({cX}, {cY}), "
-            f"bbox {w}x{h}, PCA orientation ~ {angle_deg:.2f}°"
+
+            f"bbox {w}x{h}, orientation ~ {angle_deg:.2f}°"
+
         )
 
-        # ----------------------------------------------------------
-        # Draw orientation arrow on FULL image
-        # ----------------------------------------------------------
+        # Orientation arrow on FULL image
+
         scale = 40
-        vx, vy = major_axis
-        end_x = int(cx_full + vx * scale)
-        end_y = int(cy_full + vy * scale)
 
-        cv2.arrowedLine(
-            frame_full,
-            (cx_full, cy_full),
-            (end_x, end_y),
-            (255, 0, 0),
-            2,
-            tipLength=0.2
-        )
+        norm = max(np.hypot(dx, dy), 1.0)
+
+        end_x = int(cx_full + (dx / norm) * scale)
+
+        end_y = int(cy_full + (dy / norm) * scale)
+
+        cv2.arrowedLine(frame_full, (cx_full, cy_full), (end_x, end_y),
+
+                        (255, 0, 0), 2, tipLength=0.2)
 
 
         # ----------------------------------------------------------
@@ -272,7 +289,9 @@ class CupDetector(Node):
         cup_world.height = int(h)
         cup_world.confidence = 1.0
         cup_world.pose = pose_world.pose
-        cup_world.drop_pose = pose_world.pose
+
+        import copy
+        cup_world.drop_pose = copy.deepcopy(pose_world.pose)
 
         # ----------------------------------------------------------
         # Apply LOCAL offset, then correction rotation

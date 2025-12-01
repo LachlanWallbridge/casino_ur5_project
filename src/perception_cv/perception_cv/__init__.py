@@ -12,8 +12,11 @@ from rclpy.time import Time
 
 CAM_HEIGHT_M = 0.92-0.07  # 0.9 meters height of camera above world frame
 
+# Previous, x=0.85,0.19,0.92-0.07
+
+# New z = 895mm, x = 840mm, y= 176mm
 def broadcast_camera_to_world(node: Node,
-                              translation=(0.85, 0.190, CAM_HEIGHT_M),
+                              translation=(0.840, 0.176, 0.895),
                               euler_rotation=(math.pi, 0, math.pi),
                               parent_frame='world',
                               child_frame='camera_frame'):
