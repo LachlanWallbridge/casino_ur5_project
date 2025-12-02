@@ -8,8 +8,11 @@ function CasinoDashboard({
     onBetChange,
     refreshBackendStats,
     roundActive,
-    onRoundStateChange
+    onRoundStateChange,
+    splitRatio = 0.5 // 0.6 => 60% board, 40% players
 }) {
+    const bottomRatio = 1 - splitRatio;
+
     return (
         <div
             className="container-fluid vh-100 d-flex flex-column p-0"
@@ -30,24 +33,22 @@ function CasinoDashboard({
                 <h2 className="m-0">🎰 Casino Table Dashboard</h2>
             </div>
 
-            {/* Main layout */}
+            {/* MAIN CONTENT - must be allowed to shrink */}
             <div
-                className="d-flex flex-grow-1 px-4"
-                style={{
-                    paddingTop: '10px',
-                    paddingBottom: '10px',
-                    background: '#111',
-                }}
+                className="flex-grow-1 d-flex flex-column"
+                style={{ minHeight: 0 }}             // ⬅️ important
             >
-                {/* Board (70%) */}
+                {/* --- Game board section --- */}
                 <div
-                    className="flex-grow-1 d-flex align-items-center justify-content-center"
+                    className="d-flex align-items-center justify-content-center"
                     style={{
-                        flexBasis: '70%',
+                        flex: `${splitRatio} 1 0%`,    // ⬅️ explicit flex for ratio
+                        minHeight: 0,
                         background: 'radial-gradient(circle at center, #006400 0%, #013220 100%)',
                         boxShadow: 'inset 0 0 80px rgba(0,0,0,0.6)',
                         borderRadius: '20px',
-                        marginRight: '15px',
+                        margin: '15px',
+                        overflow: 'hidden',
                     }}
                 >
                     <Board
@@ -57,38 +58,56 @@ function CasinoDashboard({
                     />
                 </div>
 
-                {/* Players sidebar (30%) */}
+                {/* --- Players section --- */}
                 <div
-                    className="d-flex flex-column justify-content-evenly align-items-center p-4"
                     style={{
-                        flexBasis: '30%',
+                        flex: `${bottomRatio} 1 0%`,   // ⬅️ same idea here
+                        minHeight: 0,                  // ⬅️ allow shrink
                         background: 'radial-gradient(circle, #111 0%, #000 100%)',
+                        borderTop: '2px solid #d4af37',
                         borderRadius: '20px',
-                        color: '#f8f8f8',
-                        borderLeft: '2px solid #d4af37',
+                        margin: '0 15px 15px 15px',
+                        padding: '20px',
+                        overflow: 'hidden',            // viewport for inner scroller
+                        display: 'flex',
+                        flexDirection: 'column',
                     }}
                 >
-                    {players && players.length > 0 ? (
-                        players.map((p, idx) => (
-                            <div
-                                key={idx}
-                                className="my-3"
-                                style={{
-                                    width: '100%',
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <PlayerCard
-                                    player={p}
-                                    onBetChange={onBetChange}
-                                    roundActive={roundActive}
-                                />
-                            </div>
-                        ))
-                    ) : (
-                        <p className="text-light mt-5 fst-italic">Waiting for player data...</p>
-                    )}
+                    <div
+                        className="d-flex justify-content-center align-items-start w-100"
+                        style={{
+                            gap: '24px',
+                            flex: '1 1 auto',          // ⬅️ this div is the scroller & must flex
+                            minHeight: 0,              // ⬅️ must be allowed to be shorter than content
+                            overflowY: 'auto',
+                            paddingRight: '8px',
+                        }}
+                    >
+                        {players && players.length > 0 ? (
+                            players.map((p, idx) => (
+                                <div
+                                    key={idx}
+                                    style={{
+                                        flex: '0 1 22rem',
+                                        maxWidth: '22rem',
+                                        width: '100%',
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    <PlayerCard
+                                        player={p}
+                                        onBetChange={onBetChange}
+                                        roundActive={roundActive}
+                                    />
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-light fst-italic mt-3">
+                                Waiting for player data…
+                            </p>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

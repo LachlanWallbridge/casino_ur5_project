@@ -104,6 +104,11 @@ class DiceDetector(Node):
             dice_num = int(box.cls[0]) + 1
             conf = float(box.conf[0])
 
+            # --- Filter low-confidence detections ---
+            if conf < 0.6:
+                self.get_logger().info(f"Skipping low-confidence detection: {conf:.2f}")
+                continue
+
             self.get_logger().info(f"Detected dice {dice_num} at cropped pixel ({cx:.1f}, {cy:.1f})")
 
             # --- Estimate rotation using minAreaRect ---
@@ -141,7 +146,7 @@ class DiceDetector(Node):
             # Dice number drawn at centre
             cv2.putText(
                 frame_full,
-                (str(dice_num)+str(conf)[1:4]),
+                (str(dice_num)+", "+str(conf)[1:4]),
                 (int(cx), int(cy)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1.0,

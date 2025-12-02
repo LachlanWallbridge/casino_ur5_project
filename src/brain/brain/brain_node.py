@@ -13,7 +13,7 @@ from rclpy.action import ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
-from custom_interface.msg import DiceResults, CupResult
+from custom_interface.msg import DiceResults, CupResult, RoundResult
 from custom_interface.srv import StartRound, GripperCmd
 from custom_interface.action import Movement
 from tf_transformations import euler_from_quaternion
@@ -83,6 +83,14 @@ class Brain(Node):
             StartRound,
             '/start_round',
             self.start_round_callback,
+            callback_group=self.cb_group
+        )
+
+        # Publisher for round results
+        self.round_result_pub = self.create_publisher(
+            RoundResult,
+            '/round_result',
+            10,
             callback_group=self.cb_group
         )
 
@@ -224,6 +232,11 @@ class Brain(Node):
             if len(self.latest_dice) != 2:
                 self.get_logger().warn("Dice count != 2.")
                 return
+            
+            # Freeze dice results before pickup removes them
+            initial_dice = list(self.latest_dice)
+            # Publish round resultss
+            self.publish_round_results(initial_dice)
 
             # Pickup + place loop
             while rclpy.ok() and len(self.latest_dice) > 0:
@@ -234,7 +247,6 @@ class Brain(Node):
                 time.sleep(1.0)
 
             self.get_logger().info("🎉 Round complete!")
-            #TODO : Pass results to the service completion response
 
         finally:
             self.round_active = False
@@ -502,6 +514,29 @@ class Brain(Node):
         self.send_motion("cartesian", above_return_pose, "FULL")
         self._motion_done_event.wait()
         self.get_logger().info("Above return position reached.")
+
+    # -----------------------------------------------------------------
+    # PUBLISH ROUND RESULTS
+    # -----------------------------------------------------------------
+    def publish_round_results(self, dice_list):
+        # Build DiceResults
+        dice_msg = DiceResults()
+        dice_msg.dice = dice_list
+
+        # Compute odd/even
+        dice_sum = sum(d.dice_number for d in dice_list)
+        is_odd = (dice_sum % 2 == 1)
+
+        # Build RoundResult
+        rr = RoundResult()
+        rr.is_odd = is_odd
+        rr.is_complete = True
+        rr.dice_results = dice_msg
+
+        self.get_logger().info(
+            f"📤 Publishing RoundResults: sum={dice_sum}, odd={is_odd}, dice={len(dice_list)}"
+        )
+        self.round_pub.publish(rr)
 
 
 # -----------------------------------------------------------------

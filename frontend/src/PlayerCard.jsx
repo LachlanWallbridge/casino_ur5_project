@@ -44,7 +44,8 @@ function PlayerCard({ player, onBetChange, roundActive }){
         <div
             className="card text-center shadow-lg border-0"
             style={{
-                width: '22rem',
+                width: '100%',          // ⟵ fills flex container
+                maxWidth: '22rem',      // ⟵ size limit
                 borderRadius: '16px',
                 background: 'linear-gradient(145deg, #2b2b2b, #1c1c1c)',
                 color: '#f8f8f8',
@@ -58,7 +59,7 @@ function PlayerCard({ player, onBetChange, roundActive }){
                     🎲 Player {player.player_id}
                 </h4>
 
-                <p className="mb-2"><strong>Position:</strong> {player.position ?? '-'}</p>
+                {/* <p className="mb-2"><strong>Position:</strong> {player.position ?? '-'}</p> */}
                 <p className="mb-2"><strong>Balance:</strong> ${player.balance ?? 0}</p>
                 <p className="mb-3"><strong>Games:</strong> {player.games_played ?? 0} played, {player.games_won ?? 0} won</p>
 
@@ -68,7 +69,7 @@ function PlayerCard({ player, onBetChange, roundActive }){
                 <h6 className="text-uppercase text-warning mb-2">Bet Parity</h6>
 
                 <div className="d-flex align-items-center justify-content-center gap-4 mb-3"
-                    style={{ minHeight: '40px' }}>
+                    style={{ minHeight: '50px' }}>
 
                     {/* LEFT ARROW SLOT */}
                     <div style={{ width: '30px', textAlign: 'center' }}>
@@ -97,8 +98,12 @@ function PlayerCard({ player, onBetChange, roundActive }){
                     {/* CENTER LABEL */}
                     <span
                         style={{
+                            display: 'inline-block',
+                            width: '120px',           // <-- increases from 90 → 120, enough for any text
+                            textAlign: 'center',
                             fontSize: '1.4rem',
                             fontWeight: 'bold',
+                            whiteSpace: 'nowrap',     // <-- prevent text wrapping
                             color:
                                 bet === "none"
                                     ? '#ccc'
@@ -111,15 +116,9 @@ function PlayerCard({ player, onBetChange, roundActive }){
                                     : bet === "even"
                                     ? '0 0 6px rgba(80,160,255,0.7)'
                                     : '0 0 6px rgba(255,255,255,0.3)',
-                            width: '90px',
-                            textAlign: 'center',
                         }}
                     >
-                        {bet === "none"
-                            ? 'No Bet'
-                            : bet === "odd"
-                            ? 'Odd'
-                            : 'Even'}
+                        {bet === "none" ? 'No Bet' : bet === "odd" ? 'Odd' : 'Even'}
                     </span>
 
                     {/* RIGHT ARROW SLOT */}

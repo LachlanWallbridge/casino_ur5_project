@@ -2,89 +2,118 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from 'react-bootstrap';
 import {
     callStartRoundService,
-    subscribeToRoundResult,
-    subscribeToDiceResults
+    subscribeToRoundResult
 } from './ui_bridge';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 // ====== CONFIG ======
 const COLOR_VALUE = {
-  red:   100,
-  white: 10,
-  blue:  20,
-  green: 50,
+    red: 100,
+    white: 10,
+    blue: 20,
+    green: 50,
 };
 
-
 function Board({ players = [], refreshBackendStats, onRoundStateChange }) {
-    const [roundActive, setRoundActive] = useState(false);
+
+    // ------------------------------
+    //   THREE BOARD STATES
+    // ------------------------------
+    const [boardState, setBoardState] = useState("waiting");
+
     const [resultText, setResultText] = useState('');
     const [dice, setDice] = useState([]);
 
-    // Subscribe to dice updates
-    useEffect(() => {
-        const unsub = subscribeToDiceResults((msg) => {
-            setDice(Array.isArray(msg?.dice) ? msg.dice : []);
-        });
-        return () => unsub();
-    }, []);
-
-    // Compute sum and parity
+    // ===============================
+    //   COMPUTED VALUES
+    // ===============================
     const diceSum = useMemo(
         () => dice.reduce((s, d) => s + (d?.dice_number || 0), 0),
         [dice]
     );
-
-    const allPlayersHaveBets = players.length > 0 &&
-        players.every((p) => p.bet_ui === "odd" || p.bet_ui === "even");
 
     const diceParityLabel = useMemo(() => {
         if (!dice.length) return '—';
         return diceSum % 2 === 0 ? 'EVEN' : 'ODD';
     }, [dice, diceSum]);
 
-    // Subscribe to round completion
+    const allPlayersHaveBets =
+        players.length > 0 &&
+        players.every((p) => p.bet_ui === "odd" || p.bet_ui === "even");
+
+    // ===============================
+    //   PULSE GLOW EFFECT (RESTORED)
+    // ===============================
+    useEffect(() => {
+        const styleEl = document.createElement("style");
+        styleEl.innerHTML = `
+            @keyframes pulseGlow {
+                0% { box-shadow: 0 0 12px rgba(255,215,0,0.4); }
+                50% { box-shadow: 0 0 28px rgba(255,215,0,1); }
+                100% { box-shadow: 0 0 12px rgba(255,215,0,0.4); }
+            }
+        `;
+        document.head.appendChild(styleEl);
+        return () => document.head.removeChild(styleEl);
+    }, []);
+
+    // ===============================
+    //   SUBSCRIBE TO ROUND RESULT
+    // ===============================
     useEffect(() => {
         const unsub = subscribeToRoundResult(async (msg) => {
-            if (!msg || !msg.is_complete) return;
+            if (!msg) return;
 
-            setRoundActive(false);
-            onRoundStateChange && onRoundStateChange(false);
+            // --- Always update dice if present ---
+            if (msg.dice_results?.dice) {
+                setDice(msg.dice_results.dice);
+            }
 
-            const isOdd = diceSum % 2 === 1;
-            const label = isOdd ? 'ODD' : 'EVEN';
+            // --- Not complete: robot still rolling ---
+            if (!msg.is_complete) {
+                setBoardState("rolling");
+                return;
+            }
+
+            // --- Round complete ---
+            const label = msg.is_odd ? 'ODD' : 'EVEN';
             setResultText(`Result: ${label}`);
+            setBoardState("outcome");
 
+            // Payout & refresh
             try {
-                // do payouts
-                await settleAllPlayers(players, isOdd);
-
-                // refresh backend stats (balances, games)
-                if (refreshBackendStats) {
-                    refreshBackendStats();
-                }
+                await settleAllPlayers(players, msg.is_odd);
+                refreshBackendStats && refreshBackendStats();
             } catch (err) {
-                console.error('Payout error:', err);
+                console.error("Payout error:", err);
             }
         });
-        return () => unsub();
-    }, [diceSum, players, refreshBackendStats]);
 
+        return () => unsub();
+    }, [players, refreshBackendStats]);
+
+    // ===============================
+    //   START GAME
+    // ===============================
     const startGame = () => {
-        setRoundActive(true);
+        setBoardState("rolling");
+        setResultText('');
+        setDice([]);
+
         onRoundStateChange && onRoundStateChange(true);
 
-        setResultText('');
         callStartRoundService((resp) => {
             if (!resp || !resp.accepted) {
-                setRoundActive(false);
+                setBoardState("waiting");
                 onRoundStateChange && onRoundStateChange(false);
                 alert('Round not accepted: ' + (resp?.message || 'unknown error'));
             }
         });
     };
 
-    // ===== STYLING =====
+    // ===============================
+    //   STYLES
+    // ===============================
     const boardStyle = {
         width: '100%',
         height: '100%',
@@ -103,27 +132,6 @@ function Board({ players = [], refreshBackendStats, onRoundStateChange }) {
         overflow: 'hidden',
     };
 
-    // Add pulse animation dynamically
-    const pulseStyle = `
-    @keyframes pulseGlow {
-    0% {
-        box-shadow: 0 0 12px rgba(255,215,0,0.4);
-    }
-    50% {
-        box-shadow: 0 0 28px rgba(255,215,0,1);
-    }
-    100% {
-        box-shadow: 0 0 12px rgba(255,215,0,0.4);
-    }
-    }
-    `;
-    useEffect(() => {
-        const styleEl = document.createElement("style");
-        styleEl.innerHTML = pulseStyle;
-        document.head.appendChild(styleEl);
-        return () => document.head.removeChild(styleEl);
-    }, []);
-
     const feltOverlay = {
         content: "''",
         position: 'absolute',
@@ -136,74 +144,78 @@ function Board({ players = [], refreshBackendStats, onRoundStateChange }) {
         pointerEvents: 'none',
     };
 
+    // ===============================
+    //   RENDER
+    // ===============================
     return (
-        <div className="container-fluid p-3" style={{ height: '100vh', background: '#222' }}>
-            <div style={boardStyle}>
-                <div style={feltOverlay}></div>
+        <div style={boardStyle}>
+            <div style={feltOverlay}></div>
 
-                {/* Title */}
-                <h2
+            {/* Title */}
+            <h2
+                style={{
+                    fontSize: '3rem',
+                    color: '#ffd700',
+                    textShadow: '0 0 12px rgba(255, 215, 0, 0.7)',
+                }}
+            >
+                {boardState === "waiting" ? "🎲 Place Your Bets" : "🎲 Rolling Dice"}
+            </h2>
+
+            {/* Dice (rolling + outcome) */}
+            {(boardState === "rolling" || boardState === "outcome") && (
+                <div className="d-flex align-items-center gap-3 mt-3">
+                    {dice.length ? (
+                        dice.map((d, i) => (
+                            <DiceTile key={i} value={d.dice_number} conf={d.confidence} />
+                        ))
+                    ) : (
+                        <span className="text-light">Waiting for dice…</span>
+                    )}
+                </div>
+            )}
+
+            {/* Sum / parity */}
+            {(boardState === "rolling" || boardState === "outcome") && (
+                <div className="mt-3" style={{ fontSize: '1.2rem' }}>
+                    Sum: <strong>{dice.length ? diceSum : '—'}</strong> &nbsp;|&nbsp;
+                    Parity: <strong>{diceParityLabel}</strong>
+                </div>
+            )}
+
+            {/* Status text */}
+            <p style={{ fontSize: '1.2rem', color: '#eaeaea', marginTop: '0.75rem' }}>
+                {boardState === "waiting" && "Awaiting players..."}
+                {boardState === "rolling" && "Round in progress..."}
+                {boardState === "outcome" && resultText}
+            </p>
+
+            {/* Start button */}
+            {boardState === "waiting" && (
+                <Button
+                    variant="warning"
+                    size="lg"
+                    className="mt-3"
+                    disabled={!allPlayersHaveBets}
                     style={{
-                        fontSize: '3rem',
-                        color: '#ffd700',
-                        textShadow: '0 0 12px rgba(255, 215, 0, 0.7)',
+                        fontWeight: 'bold',
+                        fontSize: '1.5rem',
+                        padding: '0.6em 1.6em',
+                        borderRadius: '12px',
+                        color: '#222',
+                        opacity: !allPlayersHaveBets ? 0.5 : 1,
+                        cursor: !allPlayersHaveBets ? 'not-allowed' : 'pointer',
+
+                        // 🔥 Pulse animation re-enabled
+                        animation: allPlayersHaveBets
+                            ? "pulseGlow 1.6s infinite ease-in-out"
+                            : "none",
                     }}
+                    onClick={allPlayersHaveBets ? startGame : undefined}
                 >
-                    🎲 Place Your Bets
-                </h2>
-
-                {/* Dice (only visible during active round) */}
-                {roundActive && (
-                    <div className="d-flex align-items-center gap-3 mt-3">
-                        {dice.length ? (
-                            dice.map((d, i) => (
-                                <DiceTile key={i} value={d.dice_number} conf={d.confidence} />
-                            ))
-                        ) : (
-                            <span className="text-light">Waiting for dice…</span>
-                        )}
-                    </div>
-                )}
-
-                {/* Sum / parity (only during active round) */}
-                {roundActive && (
-                    <div className="mt-3" style={{ fontSize: '1.2rem' }}>
-                        Sum: <strong>{dice.length ? diceSum : '—'}</strong> &nbsp;|&nbsp; Parity:{' '}
-                        <strong>{diceParityLabel}</strong>
-                    </div>
-                )}
-
-                {/* Round status */}
-                <p style={{ fontSize: '1.2rem', color: '#eaeaea', marginTop: '0.75rem' }}>
-                    {resultText || (roundActive ? 'Round in progress...' : 'Awaiting players...')}
-                </p>
-
-                {/* Start button */}
-                {!roundActive && (
-                    <Button
-                        variant="warning"
-                        size="lg"
-                        className="mt-3"
-                        disabled={!allPlayersHaveBets}
-                        style={{
-                            fontWeight: 'bold',
-                            fontSize: '1.5rem',
-                            padding: '0.6em 1.6em',
-                            borderRadius: '12px',
-                            color: '#222',
-                            opacity: !allPlayersHaveBets ? 0.5 : 1,
-                            cursor: !allPlayersHaveBets ? 'not-allowed' : 'pointer',
-                            transition: 'opacity 0.2s',
-
-                            // Pulsing animation
-                            animation: allPlayersHaveBets ? "pulseGlow 1.6s infinite ease-in-out" : "none",
-                        }}
-                        onClick={allPlayersHaveBets ? startGame : undefined}
-                    >
-                        {allPlayersHaveBets ? "Start Game" : "Waiting for bets..."}
-                    </Button>
-                )}
-            </div>
+                    {allPlayersHaveBets ? "Start Game" : "Waiting for bets..."}
+                </Button>
+            )}
         </div>
     );
 }
@@ -242,8 +254,8 @@ function DiceTile({ value = 0, conf = 0 }) {
 
 // ===== Payout helpers =====
 async function settleAllPlayers(players, isOdd) {
-  const tasks = players.map((p) => settleOnePlayer(p, isOdd));
-  await Promise.all(tasks);
+    const tasks = players.map((p) => settleOnePlayer(p, isOdd));
+    await Promise.all(tasks);
 }
 
 function readPlayerBetFromUI(player) {
@@ -253,46 +265,30 @@ function readPlayerBetFromUI(player) {
 }
 
 function computeWagerFromColors(colors) {
-  return (colors || [])
-    .map((c) => (c || '').toString().toLowerCase())
-    .reduce((sum, c) => sum + (COLOR_VALUE[c] || 0), 0);
+    return (colors || [])
+        .map((c) => (c || '').toString().toLowerCase())
+        .reduce((sum, c) => sum + (COLOR_VALUE[c] || 0), 0);
 }
 
 async function settleOnePlayer(player, isOdd) {
-  // Read the player's declared bet side
-  const playerBetIsOdd = readPlayerBetFromUI(player);
-  if (playerBetIsOdd === null) {
-    console.warn(`Player ${player?.player_id}: no bet parity set; skipping payout.`);
-    return;
-  }
+    const playerBetIsOdd = readPlayerBetFromUI(player);
+    if (playerBetIsOdd === null) return;
 
-  // Sum wager from chip colours
-  const wager = computeWagerFromColors(player?.bet_colors);
-  if (wager <= 0) {
-    // No chips placed → no balance change, but still count a game played
-    await fetch(`/players/${player.player_id}/game`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ won: false }),
+    const wager = computeWagerFromColors(player?.bet_colors);
+    const won = (playerBetIsOdd === isOdd);
+    const delta = won ? +wager : -wager;
+
+    const gameReq = fetch(`/players/${player.player_id}/game`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ won }),
     });
-    return;
-  }
 
-  const won = (playerBetIsOdd === isOdd);
-  const delta = won ? +wager : -wager;
+    const balanceReq = fetch(`/players/${player.player_id}/balance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: delta }),
+    });
 
-  const gameReq = fetch(`/players/${player.player_id}/game`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ won }),
-  });
-
-  const balanceReq = fetch(`/players/${player.player_id}/balance`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ amount: delta }),
-  });
-
-  await Promise.all([gameReq, balanceReq]);
+    await Promise.all([gameReq, balanceReq]);
 }
-
