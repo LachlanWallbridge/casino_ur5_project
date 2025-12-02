@@ -41,7 +41,7 @@ from tf_transformations import (
 )
 
 WINDOW_NAME = "Cup Detection"
-CUP_HALF_HEIGHT = 0.08  # [m] approximate height offset for end-effector above board
+CUP_HALF_HEIGHT = 0.06  # [m] approximate height offset for end-effector above board
 MIN_CONTOUR_AREA = 100  # px^2, filter tiny blobs
 
 
@@ -526,7 +526,7 @@ class CupDetector(Node):
         q_tf_np = np.array([q_tf.x, q_tf.y, q_tf.z, q_tf.w])
 
         # world-space offset along LOCAL X
-        offset_local = np.array([0.15, 0.0, 0.0, 0.0])   # homogeneous
+        offset_local = np.array([0.125, 0.0, 0.0, 0.0])   # homogeneous
         R_tf = quaternion_matrix(q_tf_np)                # 4×4 matrix
         offset_world = R_tf[:3, :3].dot(offset_local[:3])
 

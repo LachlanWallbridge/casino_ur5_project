@@ -16,7 +16,7 @@ CAM_HEIGHT_M = 0.92-0.07  # 0.9 meters height of camera above world frame
 
 # New z = 895mm, x = 840mm, y= 176mm
 def broadcast_camera_to_world(node: Node,
-                              translation=(0.840, 0.176, 0.895),
+                              translation=(0.840, 0.200, CAM_HEIGHT_M),
                               euler_rotation=(math.pi, 0, math.pi),
                               parent_frame='world',
                               child_frame='camera_frame'):

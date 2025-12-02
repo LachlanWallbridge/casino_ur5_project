@@ -77,7 +77,7 @@ class DiceDetector(Node):
         x_start = pad
         x_end = img_w - pad
         y_start = 0
-        y_end = img_h // 2  # top half only
+        y_end = img_h // 2 - 10  # top half only
 
         cropped = frame_full[y_start:y_end, x_start:x_end]
 

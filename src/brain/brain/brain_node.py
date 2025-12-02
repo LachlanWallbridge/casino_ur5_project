@@ -234,6 +234,7 @@ class Brain(Node):
                 time.sleep(1.0)
 
             self.get_logger().info("🎉 Round complete!")
+            #TODO : Pass results to the service completion response
 
         finally:
             self.round_active = False
@@ -297,7 +298,7 @@ class Brain(Node):
         pose = dice_msg.pose
         self.get_logger().info(f"Picking up dice {dice_msg.dice_number}")
 
-        above_xyz = [pose.position.x, pose.position.y, pose.position.z + 0.14]
+        above_xyz = [pose.position.x, pose.position.y, pose.position.z + 0.20]
         grip_xyz  = [pose.position.x, pose.position.y, pose.position.z + 0.115]
 
         roll, pitch, yaw = euler_from_quaternion([
@@ -319,6 +320,11 @@ class Brain(Node):
         self._motion_done_event.wait()
 
         self.gripper_command(180)
+
+        self._motion_done_event.clear()
+        self.send_motion("cartesian", above_pose, "FULL")
+        self._motion_done_event.wait()
+
         return roll, pitch, yaw
 
     def return_home(self, open_gripper=False):
@@ -379,9 +385,9 @@ class Brain(Node):
 
         cup_roll, cup_pitch, cup_yaw = euler_from_quaternion(q_cup)
 
-        APPROACH = 0.15
+        APPROACH = 0.12
         LIFT = 0.10
-        DUMP_X = 0.10
+        DUMP_X = 0.08
 
         grab_pos = np.array([
             cup.position.x,
@@ -430,7 +436,8 @@ class Brain(Node):
         self.get_logger().info("Lift position reached.")
 
         # Dump move
-        dump_pos = lift_pos + np.array([DUMP_X, 0.0, 0.0])
+        DOWN_Z = -0.05
+        dump_pos = lift_pos + np.array([DUMP_X, 0.0, DOWN_Z])
         dump_pose = [
             dump_pos[0], dump_pos[1], dump_pos[2],
             cup_roll, cup_pitch, 0.0,
