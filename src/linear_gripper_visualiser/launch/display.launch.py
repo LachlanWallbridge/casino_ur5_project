@@ -13,7 +13,7 @@ import xacro
 def generate_launch_description():
     package_name = 'linear_gripper_visualiser'
     xacro_path = 'urdf/ur_with_gripper.xacro'
-    rviz_path = 'rviz/rviz.rviz'
+    rviz_path = 'rviz/rvizFullDisp.rviz'
 
     xacro_file = os.path.join(get_package_share_directory(package_name), xacro_path)
     xacro_raw_description = xacro.process_file(xacro_file).toxml()
@@ -54,7 +54,7 @@ def generate_launch_description():
                     ]),
                     launch_arguments={
                         'ur_type': 'ur5e',
-                        'launch_rviz': 'true',
+                        'launch_rviz': 'false',
                         'description_file': os.path.join(get_package_share_directory('linear_gripper_visualiser'), 'urdf/ur_with_gripper.xacro')
                     }.items()
                 )
@@ -78,4 +78,11 @@ def generate_launch_description():
                 )
             ]
         ),
+        Node(
+            name='rviz2',
+            package='rviz2',
+            executable='rviz2',
+            output='screen',
+            arguments=['-d', rviz_file]
+		),
     ])
