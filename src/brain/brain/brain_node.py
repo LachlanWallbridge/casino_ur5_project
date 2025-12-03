@@ -105,7 +105,7 @@ class Brain(Node):
 
         MIN_AREA = 500    # lower bound for bbox area
         MAX_AREA = 1500   # upper bound for bbox area
-        CONF_THRESH = 0.60 # minimal YOLO confidence
+        CONF_THRESH = 0.55 # minimal YOLO confidence
 
         filtered = []
 

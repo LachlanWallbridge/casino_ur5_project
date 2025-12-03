@@ -105,7 +105,7 @@ class DiceDetector(Node):
             conf = float(box.conf[0])
 
             # --- Filter low-confidence detections ---
-            if conf < 0.6:
+            if conf < 0.55:
                 self.get_logger().info(f"Skipping low-confidence detection: {conf:.2f}")
                 continue
 
