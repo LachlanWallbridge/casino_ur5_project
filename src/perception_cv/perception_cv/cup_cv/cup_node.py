@@ -526,7 +526,7 @@ class CupDetector(Node):
         q_tf_np = np.array([q_tf.x, q_tf.y, q_tf.z, q_tf.w])
 
         # world-space offset along LOCAL X
-        offset_local = np.array([0.125, 0.0, 0.0, 0.0])   # homogeneous
+        offset_local = np.array([0.14, 0.0, 0.0, 0.0])   # homogeneous
         R_tf = quaternion_matrix(q_tf_np)                # 4×4 matrix
         offset_world = R_tf[:3, :3].dot(offset_local[:3])
 

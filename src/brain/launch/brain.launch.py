@@ -9,7 +9,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     frontend_arg = DeclareLaunchArgument(
         'frontend',
-        default_value='true',
+        default_value='false',
         description='Whether to launch the frontend and backend (true/false)'
     )
 
@@ -31,13 +31,13 @@ def generate_launch_description():
         # -----------------------------------
         # rosbridge (execute like CLI)
         # -----------------------------------
-        rosbridge_proc = ExecuteProcess(
-            cmd=[
-                "ros2", "launch", "rosbridge_server",
-                "rosbridge_websocket_launch.xml"
-            ],
-            output="screen"
-        )
+        # rosbridge_proc = ExecuteProcess(
+        #     cmd=[
+        #         "ros2", "launch", "rosbridge_server",
+        #         "rosbridge_websocket_launch.xml"
+        #     ],
+        #     output="screen"
+        # )
 
         # -----------------------------------
         # Optional frontend/backend terminals

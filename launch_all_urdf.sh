@@ -52,27 +52,40 @@ sleep 5
 # ------------------------------------------------------------
 # 2. UR Driver Server
 # ------------------------------------------------------------
-open_term "UR Driver Server" \
-    "ros2 launch ur_robot_driver ur_control.launch.py \
-        ur_type:=ur5e robot_ip:=192.168.0.100 \
-        use_fake_hardware:=false launch_rviz:=false"
+# open_term "UR Driver Server" \
+#     "ros2 launch ur_robot_driver ur_control.launch.py \
+#         ur_type:=ur5e robot_ip:=192.168.0.100 \
+#         use_fake_hardware:=false launch_rviz:=false"
 
-sleep 10
+# sleep 10
 
 # ------------------------------------------------------------
 # 3. MoveIt Server
 # ------------------------------------------------------------
-open_term "MoveIt Server" \
-    'ros2 launch ur_moveit_config ur_moveit.launch.py \
-        robot_ip:=192.168.0.100 ur_type:=ur5e launch_rviz:=true'
+# open_term "MoveIt Server" \
+#     'ros2 launch ur_moveit_config ur_moveit.launch.py \
+#         robot_ip:=192.168.0.100 ur_type:=ur5e launch_rviz:=true'
 
-sleep 4
+# sleep 4
 
 # ------------------------------------------------------------
 # 4. Gripper Visualiser
 # ------------------------------------------------------------
-open_term "Gripper Visualiser" \
-    "ros2 launch linear_gripper_visualiser auxiliary.launch.py"
+# open_term "Gripper Visualiser" \
+#     "ros2 launch linear_gripper_visualiser auxiliary.launch.py"
+
+# sleep 3
+
+# ------------------------------------------------------------
+
+open_term "Real Robot" \
+    "ros2 launch linear_gripper_visualiser display.launch.py"
+
+sleep 10
+
+
+open_term "Gripper" \
+    "ros2 run gripper gripper_server"
 
 sleep 3
 

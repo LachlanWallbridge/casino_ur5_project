@@ -536,7 +536,7 @@ class Brain(Node):
         self.get_logger().info(
             f"📤 Publishing RoundResults: sum={dice_sum}, odd={is_odd}, dice={len(dice_list)}"
         )
-        self.round_pub.publish(rr)
+        self.round_result_pub.publish(rr)
 
 
 # -----------------------------------------------------------------

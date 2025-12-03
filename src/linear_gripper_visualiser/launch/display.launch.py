@@ -12,9 +12,8 @@ import xacro
 
 def generate_launch_description():
     package_name = 'linear_gripper_visualiser'
-    xacro_path = 'urdf/ur_with_gripper.urdf.xacro'
+    xacro_path = 'urdf/ur_with_gripper.xacro'
     rviz_path = 'rviz/rviz.rviz'
-    urdf_path = 'urdf/linear_gripper.urdf'
 
     xacro_file = os.path.join(get_package_share_directory(package_name), xacro_path)
     xacro_raw_description = xacro.process_file(xacro_file).toxml()
@@ -22,12 +21,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         # Declare argument for custom URDF
-        DeclareLaunchArgument(
-            'urdf_path',
-            default_value=urdf_path,
-            description='Path to custom URDF'
-        ),
-
         # Driver server launch
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
@@ -42,7 +35,7 @@ def generate_launch_description():
                 'robot_ip': '192.168.0.100',
                 'use_fake_hardware': 'false',
                 'launch_rviz': 'false',
-                'description_file': os.path.join(get_package_share_directory('linear_gripper_visualiser'), 'urdf/ur_with_gripper.urdf.xacro')
+                'description_file': os.path.join(get_package_share_directory('linear_gripper_visualiser'), 'urdf/ur_with_gripper.xacro')
             }.items()
         ),
 
@@ -62,7 +55,7 @@ def generate_launch_description():
                     launch_arguments={
                         'ur_type': 'ur5e',
                         'launch_rviz': 'true',
-                        'description_file': os.path.join(get_package_share_directory('linear_gripper_visualiser'), 'urdf/ur_with_gripper.urdf.xacro')
+                        'description_file': os.path.join(get_package_share_directory('linear_gripper_visualiser'), 'urdf/ur_with_gripper.xacro')
                     }.items()
                 )
             ]
@@ -73,12 +66,16 @@ def generate_launch_description():
             name='robot_state_publisher',
             output='screen',
             parameters=[{'robot_description': xacro_raw_description}]
-        ),
-        Node(
-            package = 'joint_state_publisher',
-            executable = 'joint_state_publisher',
-            name = 'joint_state_publisher',
-            output = 'screen',
-            parameters=[{'robot_description': xacro_raw_description}]       
+        ),     
+        TimerAction(
+            period=15.0,
+            actions=[
+                Node(
+                    package = 'moveit_path_planner',
+                    executable = 'cartesian_move_demo',
+                    name = 'cartesian_moveit_controller',
+                    output = 'screen'
+                )
+            ]
         ),
     ])

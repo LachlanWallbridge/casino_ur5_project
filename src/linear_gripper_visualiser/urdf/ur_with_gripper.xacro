@@ -6,12 +6,20 @@
   <xacro:arg name="name" default="ur5"/>
   <xacro:arg name="ur_type" default="ur5"/>
   <xacro:include filename="$(find ur_description)/urdf/ur.urdf.xacro"/>
-
-  <xacro:include filename="$(find linear_gripper_visualiser)/urdf/linear_gripper.urdf"/>
+  
+  <!-- end effector -->
+  <link name="palm">
+    <visual>
+      <origin xyz="0 0 0" rpy="3.1415 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find linear_gripper_visualiser)/meshes/gripperURDFV2.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </visual>
+  </link>
 
   <joint name="wrist_3_link_to_gripper_palm" type="fixed">
     <parent link="tool0"/>
     <child link="palm"/>
-    <origin xyz="0 0 0.04" rpy="0 0 0"/>
+    <origin xyz="0 0 0.062" rpy="0 0 0"/>
   </joint>
 </robot>
