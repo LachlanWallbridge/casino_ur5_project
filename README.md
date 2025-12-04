@@ -943,7 +943,7 @@ cd $WS/backend && uvicorn api:app --reload --port 8000
 
 ```bash
 # Launch only frontend
-cd $WS/backend && uvicorn api:app --reload --port 8000
+cd $WS/frontend && npm start
 ```
 
 (Replace with your actual package / launch file names.)
