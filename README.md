@@ -32,8 +32,7 @@ Suggested prompts:
 - How does it close the loop between sensing, planning and acting?
 
 ### 2.3 Demo Video
-[![Watch the Demo](https://img.icons8.com/fluency/240/youtube-play.png)]
-(https://drive.google.com/file/d/1irMjWqZdTdLUCx5GPTzw7JCPZO1h40ZF/view?usp=drive_link)
+[![Watch the Demo](https://img.icons8.com/fluency/240/youtube-play.png)](https://drive.google.com/file/d/1irMjWqZdTdLUCx5GPTzw7JCPZO1h40ZF/view?usp=drive_link)
 
 
 > TODO: Insert a short video (10–30 s) showing one complete, closed-loop game cycle.
