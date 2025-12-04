@@ -802,8 +802,6 @@ Discuss:
 
 # 5. Installation and Setup
 
-> TODO: Provide clear, step-by-step instructions to reproduce your development environment and run the system on a fresh machine.
-
 ## 5.1 Requirements
 
 The system has a number of requirements which must first be met before setup can begin. 
@@ -812,10 +810,10 @@ The system has a number of requirements which must first be met before setup can
 Fistly, the system relies on Ros2 Humble Hawksbill. [HERE](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html) is the guide for installing Ros2 Huble Hawksbill via ubuntu debain packages.
 
 ### Moveit
-All path planning and executing with the Ur5e is done via Moveit. An installation guide can be found HERE
+All path planning and executing with the Ur5e is done via Moveit. An installation guide can be found [HERE](https://moveit.ai/install-moveit2/source/).
 
 ### RealSense
-To make use of the RealSense camera we require the appropraite ros wrapper. Follow the installation guide at in the ReadME HERE
+To make use of the RealSense camera we require the appropraite ros wrapper. Follow the installation guide at in the ReadMe [HERE](https://github.com/realsenseai/realsense-ros?tab=readme-ov-file#installation-on-ubuntu).
 
 ### NodeJS and NPM
 The front-end requires NodeJS to operate and npm to handle dependencies. Installing NodeJS should install npm with it. On Debian-based systems, you can use the NodeSource repository or Node Version Manager (NVM). For the NodeSource method, first update your system and install dependencies:
@@ -830,13 +828,14 @@ sudo apt install -y nodejs
 ```
 ### Front-End
 ** TO BE DONE AFTER CLONING INTO REPO **
+To ensure all front end dependencies are installed, run the follwing commands from the base of the repository. 
 ```bash
 cd frontend
 npm install
 ```
 
 ### Additional Back-End
-
+The back end requires a couple more packages. These include some extra drivers as well as python libraries for the vision and and end-effector code. 
 ```bash
 pip install -r requirements.txt
 
@@ -847,14 +846,12 @@ sudo apt install ros-humble-message-filters
 sudo apt install ros-humble-tf-transformations
 ```
 
-(Add any additional ROS packages, Python dependencies or system libraries here.)
-
-## 5.2 Workspace Setup
-
-> TODO: Describe how to clone and build the ROS2 workspace.
-
-Suggested steps (edit as needed):
-
+## 5.2 Workspace Setup and Cloning the Repo
+Navigate to your desired workspace directory and clone the repository:
+```bash
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+```
 ```bash
 git clone https://github.com/LachlanWallbridge/MTRN4231_Project.git
 cd MTRN4231_Project
@@ -983,17 +980,15 @@ Include:
 
 # 9. Contributors and Roles
 
-> TODO: List team members and their primary responsibilities.
+![System Overview](docs/media/Team.jpg)
 
-Example table:
 
 | Name            | zID       | Primary Roles                              |
 |-----------------|-----------|--------------------------------------------|
-| Student A       | z5xxxxxxx | Vision, Web dashboard, visualisation       |
-| Student B       | z5xxxxxxx | Motion planning, MoveIt integration        |
-| Student C       | z5xxxxxxx | Hardware, end-effector, UR5e integration   |
+| Lachlan Wallbridge       | z5xxxxxxx | Vision, Web dashboard, visualisation       |
+| Karl - pls fill in      | z5xxxxxxx | Motion planning, MoveIt integration        |
+| Samuel Maron       | z5351169 | Hardware, end-effector, UR5e integration, visualisation   |
 
-(Add/remove rows as necessary.)
 
 ---
 
