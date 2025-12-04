@@ -1042,7 +1042,7 @@ Include:
 | Name            | zID       | Primary Roles                              |
 |-----------------|-----------|--------------------------------------------|
 | Lachlan Wallbridge       | z5xxxxxxx | Vision, Web dashboard, visualisation       |
-| Karl - pls fill in      | z5xxxxxxx | Motion planning, MoveIt integration        |
+| Kanokpop Juemjutitam      | z5382229 | Motion planning, MoveIt integration        |
 | Samuel Maron       | z5351169 | Hardware, end-effector, UR5e integration, visualisation   |
 
 
