@@ -1064,8 +1064,27 @@ Users have provided positive feedback on the front end and the game experience. 
 
 # 8. Discussion and Future Work
 
-> TODO: Reflect on engineering challenges and potential improvements.
+## Challenges and Solutions
 
+# MoveIt (OMPL) Path Planning Issues → Solved by Using a Cartesian Path Planner
+A major engineering challenge was understanding and controlling MoveIt’s OMPL-based global planner. The planner often produced unpredictable and inefficient trajectories, causing the robot to perform unnecessary spins, large detours, or motions that did not align with the intended task sequence. Debugging this behaviour was particularly difficult because MoveIt does not expose detailed logs or internal sampling information, making it nearly impossible to interpret why a specific trajectory was chosen. This unpredictability made precise manipulation tasks—such as picking dice or flipping the cup—unreliable. The issue was fully resolved by replacing OMPL-based planning with a custom Cartesian path planner, which provides deterministic, easily constrained, and much more predictable motion. Cartesian paths ensured that robot joints moved smoothly and logically, making trajectory generation simple, fast, and optimised for the task.
+
+# Service Callback Blocking MoveGroup Updates → Solved by Switching to an Action Server
+Another significant issue arose in the moveit_path_planner package, where the Cartesian path planner was initially implemented as a service server. Because ROS 2 services are synchronous and blocking, the service callback prevented MoveGroup from updating the robot’s internal state while planning. This meant that Cartesian planning frequently used stale robot states—resulting in incorrect trajectories, planning failures, or unsafe motions. The problem was caused by MoveGroup and the planner running on the same callback thread, limiting MoveGroup’s ability to update joint states during execution. The solution was to convert the planner into an Action Server, which executes in its own dedicated threads and supports non-blocking behaviour. This allowed MoveGroup to continuously update robot states while planning and executing trajectories, fully eliminating the stale-state issues and making the planning pipeline robust and reliable.
+
+# Callback Deadlocks and Concurrency Problems in the Brain Node
+The Brain node suffered early from callback deadlocks and unsafe motion sequencing because multiple components—subscriptions, services, the ActionClient, and the round thread—were all competing on a single executor thread. Callbacks frequently blocked each other, preventing perception and action feedback from running and causing the system to freeze mid-round. This was resolved by using a ReentrantCallbackGroup and a MultiThreadedExecutor, allowing callbacks to run concurrently, and by introducing threading.Event() to synchronise robot motions. These changes ensured that actions could execute safely in sequence while perception and other callbacks continued to run in parallel, eliminating deadlocks and making motion execution deterministic and reliable.
+
+## Potential Improvements
+
+# Improvements on motions and close-loop controls
+One improvement is to ensure the robot always starts in a known, safe home position when the system launches. Establishing a consistent initial pose would remove uncertainty about the robot’s configuration, simplify motion planning, and reduce the chance of unreachable states. Additionally, both the Brain node and the moveit_path_planning_server could be enhanced with automatic recovery behaviours. When a motion error occurs, the system could command the robot to safely return to the home position and display a clear error message on the frontend, improving usability and preventing unsafe states.
+
+Another area for future development is the pick-and-place control loop. The current system is not fully real-time, as target poses for dice and cup detection are only refreshed after each discrete motion completes. A more advanced approach would introduce continuous tracking—updating target poses in real time and running path planning continuously as the object moves. Implementing such a closed-loop motion pipeline would allow smoother, more responsive manipulation, enabling the robot to follow moving targets dynamically rather than executing step-based motions.
+
+
+
+> TODO: Reflect on engineering challenges and potential improvements.
 Include:
 
 - Major technical challenges (e.g. calibration drift, latency, path planning collisions) and how you addressed them.
