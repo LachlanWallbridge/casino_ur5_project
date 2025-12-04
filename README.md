@@ -48,7 +48,7 @@ At startup the game frontend is launched. The perception pipeline start by ident
 
 The players should now place their ArUco marker ID's in a designated player section. The systems perception will automatically detect the player markers and populate the front end with player information.With our players in, they may being placing bets. Once again the systems perception will automatiaclly detect the bets and populate the front end based on the bets placed on the board. Once bets are placed, our players make their prediction on the dice outcome through the front end. Once all players have made a prediction the start button will become availible. 
 
-![System Overview](docs/media/front_end.png)
+![System Overview](docs/media/play_sceen.png)
 
 After the start button is pressed, the robot will move to a designated 1st position and open the gripper. It will then move to pick up the cup based on the perception pipelines prediction of cup position and orientation. The robot will pick up the dice cup, lift it slightly make a roll and the place the cup back down in it's starting position. The robot will now return back to the designated 1st position. Now the yolo model works to identify the dice outcome which is then reported to the front end, confirming the results of the round and allowing dealers to handle payout. 
 
@@ -115,6 +115,9 @@ Describe, in a few bullet points:
 ---
 
 ### 3.5.1 Custom Messages
+
+<details>
+<summary><strong>Message Definitions</strong> (click to expand)</summary>
 
 #### `DiceResult.msg`
 
@@ -187,9 +190,14 @@ Describe, in a few bullet points:
 
 **Usage:** Published at end of round for UI updates and payout calculation.
 
+</details>
+
 ---
 
 ### 3.5.2 Custom Actions
+
+<details>
+<summary><strong>Action Definitions</strong> (click to expand)</summary>
 
 #### `Movement.action`
 
@@ -201,9 +209,14 @@ Describe, in a few bullet points:
 
 **Usage:** Interface between `brain` and `moveit_path_planner` for UR5e movements.
 
+</details>
+
 ---
 
 ### 3.5.3 Custom Services
+
+<details>
+<summary><strong>Service Definitions</strong> (click to expand)</summary>
 
 #### `StartRound.srv`
 
@@ -235,6 +248,8 @@ Describe, in a few bullet points:
 | **Response** | `bool success`, `string message` |
 
 **Usage:** Re-home the gripper on startup or recovery.
+
+</details>
 
 ---
 
