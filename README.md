@@ -93,9 +93,8 @@ Describe, in a few bullet points:
 ## 3.3 Behaviour Tree / State Machine
 
 > TODO: Include a behaviour-tree or state-machine diagram describing the closed-loop behaviour across one full game round.
+![Behaviour-tree of one full game close-loop](docs/diagrams/BehaviorTree.png)
 
-
-![State Machine](docs/diagrams/state_machine.png)
 
 ## 3.4 Node Summaries
 
@@ -895,8 +894,10 @@ Include:
 
 Example placeholder:
 
+# Make sure that you are in the MTRN4231_Project workspace
 ```bash
-ros2 launch mtrn4231_casino bringup.launch.py
+cd launch
+./launch_all_urdf.sh
 ```
 
 Briefly describe what this launch file does (starts perception, `brain`, MoveIt, visualisation, dashboard, etc.).
