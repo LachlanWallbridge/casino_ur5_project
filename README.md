@@ -891,8 +891,8 @@ Include:
 
 Example placeholder:
 
-# Make sure that you are in the MTRN4231_Project workspace
 ```bash
+# Make sure that you are in the MTRN4231_Project workspace
 cd launch
 ./launch_all_urdf.sh
 ```
@@ -906,11 +906,44 @@ Briefly describe what this launch file does (starts perception, `brain`, MoveIt,
 Examples:
 
 ```bash
+# Connect to camera
+cd scripts
+./realsense.sh
+```
+
+```bash
+# Launch ur_robot_driver, ur_moveit_config, Moveit_path_planner_server (cartesian+ joints)
+ros2 launch linear_gripper_visualiser display.launch.py
+```
+
+```bash
+# Launch only gripper server
+ros2 run gripper gripper_server
+```
+
+```bash
 # Launch only perception stack
 ros2 launch perception_cv perception.launch.py
+```
 
-# Launch only the brain and planner
-ros2 launch brain brain.launch.py
+```bash
+# Launch only RosBridgeServer to communicate with backend
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+```
+
+```bash
+# Launch only the brain
+ros2 run brain brain_node
+```
+
+```bash
+# Launch only backend
+cd $WS/backend && uvicorn api:app --reload --port 8000
+```
+
+```bash
+# Launch only frontend
+cd $WS/backend && uvicorn api:app --reload --port 8000
 ```
 
 (Replace with your actual package / launch file names.)
@@ -919,11 +952,37 @@ ros2 launch brain brain.launch.py
 
 > TODO: Describe what a user should see when the system is running correctly.
 
-For example:
+once the shell script is executed in the terminal
+```bash
+# Make sure that you are in the MTRN4231_Project workspace
+cd launch
+./launch_all_urdf.sh
+```
+There will be 8 new terminals appeared on the screen with the following titles:
+## Terminal & Process Overview
 
-- RViz shows the UR5e model, board frame and detected dice/cup markers.
-- Web dashboard shows current bets, dice results and round status.
-- The robot moves through the game sequence without manual intervention.
+| **Terminal** | **Title** | **Role / Description** |
+|--------------|-----------|-------------------------|
+| **1** | `RealSense Camera` | Runs the `realsense_interface` node responsible for streaming RGB-D data to all perception modules. |
+| **2** | `Real Robot` | Launches the real UR5e stack: `ur_robot_driver`, `ur_moveit_config` (with `gripper.xacro`), and the `cartesian_path_planner` action server for executing robot motions. |
+| **3** | `Gripper Server` | Provides gripper control services, receiving open/close commands from the Brain node and driving the physical gripper hardware. |
+| **4** | `Perception` | Hosts all perception nodes: ArUco board detection, dice CV, cup CV, and player CV. Publishes structured detections to the Brain. |
+| **5** | `Rosbridge` | Runs `rosbridge_websocket` to enable communication between ROS 2 and the backend/frontend dashboard using WebSockets and JSON. |
+| **6** | `Brain Node` | The main game orchestrator. Coordinates perception, MoveIt motion planning, and gripper operations. Maintains round state and communicates with the UI. |
+| **7** | `Backend` | Backend server for game logic, APIs, and routing data between rosbridge and the frontend dashboard. |
+| **8** | `Frontend` | Web frontend UI that displays the game state, dice results, player info, and robot actions in real-time. |
+
+## Additional Interfaces
+
+| **Component** | **Role / Description** |
+|---------------|-------------------------|
+| **RViz** | Visualises the UR5e robot, TF tree, board frame, cup/dice poses, and all perception markers. |
+| **Cup Mask Image** | Live OpenCV debugging window showing the cup segmentation mask. |
+| **Dice Detection Image** | Live window displaying detected dice, bounding boxes, classification, and pose overlays. |
+| **Player Detection Image** | Visualises player identification, markers, and filtered chip detections. |
+| **Frontend UI** | Accessible at **http://localhost:3000/** — opens in a new browser tab for interactive game monitoring. |
+
+
 
 ## 6.4 Troubleshooting
 
