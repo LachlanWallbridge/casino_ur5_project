@@ -831,18 +831,13 @@ sudo apt install ros-humble-tf-transformations
 
 Suggested steps (edit as needed):
 
-1. Create and initialise the workspace:
-   ```bash
-   mkdir -p ~/mtrn4231_ws/src
-   cd ~/mtrn4231_ws/src
-   git clone https://github.com/your-org/your-repo.git
-   cd ..
-   rosdep install --from-paths src --ignore-src -r -y
-   colcon build
-   source install/setup.bash
-   ```
-2. Mention any required branches or tags.
-3. Note any environment variables that must be set (e.g. `UR_TYPE`, `ROS_DOMAIN_ID`, etc.).
+```bash
+git clone https://github.com/LachlanWallbridge/MTRN4231_Project.git
+cd MTRN4231_Project
+
+colcon build --symlink-install
+source install/setup.bash
+```
 
 ## 5.3 Hardware Setup
 
