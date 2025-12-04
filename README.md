@@ -353,12 +353,12 @@ If detection fails, the transform is not updated, preventing jumps in downstream
 ---
 
 
-## 4.1.2 Dice Detection (`dice_cv`)
+### 4.1.2 Dice Detection (`dice_cv`)
 
 The dice detection pipeline operates on the **rectified, top‑down board image** produced by the ArUco node. Its job is to detect dice reliably, estimate their orientation, and output usable 3D poses for the robot.
 
 
-### Purpose in the system
+#### Purpose in the system
 
 - Detect all dice visible on the board.
 - Classify each die’s face value (1–6).
@@ -367,20 +367,20 @@ The dice detection pipeline operates on the **rectified, top‑down board image*
 - Publish structured detections and visual markers used by the robot and UI.
 
 
-### Inputs and outputs
+#### Inputs and outputs
 
-#### **Subscribed**
+##### **Subscribed**
 - `board/warped_image` (Image) — top‑down view of the board.
 
-#### **Published**
+##### **Published**
 - `dice_results` (DiceResults) — world-frame poses of dice.
 - `dice_markers` (MarkerArray) — board-frame RViz cubes and labels.
 - `dice_ee_goal_markers` (MarkerArray) — end-effector goal visualisations.
 
-#### **Model**
+##### **Model**
 - Loads a custom YOLO model (`best.pt`) from `perception_cv/dice_cv/weights`.
 
-#### **TF**
+##### **TF**
 Uses the existing TF chain:
 
 ```
@@ -390,7 +390,7 @@ world
 ```
 
 
-### Annotated Dice Detections
+#### Annotated Dice Detections
 
 The warped-board view includes:
 
@@ -402,16 +402,16 @@ The warped-board view includes:
 ![Dice detection on warped board](docs/media/dice_board_annotated.png)
 
 
-### Processing overview
+#### Processing overview
 
-#### 1. **Pre‑processing and crop**
+##### 1. **Pre‑processing and crop**
 - Incoming warped image is converted via `CvBridge`.
 - A rectangular crop is taken from the **upper half** of the board where dice land.
 - YOLO inference runs only on this crop (faster, fewer false positives).
 - The crop region is drawn in green on the final debug image.
 
 
-#### 2. **YOLO inference**
+##### 2. **YOLO inference**
 Each YOLO detection produces a bounding box, class index, and confidence.
 
 - Detections below **0.55 confidence** are ignored.
@@ -421,7 +421,7 @@ Each YOLO detection produces a bounding box, class index, and confidence.
 - These are drawn in the debug overlay.
 
 
-### Rotation estimation (simple contour method)
+#### Rotation estimation (simple contour method)
 
 For each YOLO bounding box:
 
@@ -436,9 +436,9 @@ If anything fails (no contour, noisy threshold), yaw defaults to **0°**, and th
 A rotated bounding box is redrawn around the die for clarity.
 
 
-### Converting pixels → board and world
+#### Converting pixels → board and world
 
-#### **Board-frame coordinates**
+##### **Board-frame coordinates**
 ```
 pixel_to_board_coords(
     x_px = centre_x,
@@ -450,7 +450,7 @@ pixel_to_board_coords(
 
 Returns `(x_m, y_m, z_m)` in **metres** inside the `board_frame`.
 
-#### **World-frame pose**
+##### **World-frame pose**
 ```
 pixel_to_world_pose(..., yaw_rad, tf_buffer)
 ```
@@ -459,7 +459,7 @@ pixel_to_world_pose(..., yaw_rad, tf_buffer)
 - Outputs a full `PoseStamped` in the `world` frame.  
 - If TF lookup fails, that dice detection is skipped.
 
-#### **Yaw correction for MoveIt**
+##### **Yaw correction for MoveIt**
 The robot’s tool convention requires a 180° flip around the Y-axis:
 
 ```
@@ -469,9 +469,9 @@ pose.orientation = orientation ⨉ quaternion_from_euler(0, π, 0)
 This ensures the die is approached correctly.
 
 
-### Publishing results
+#### Publishing results
 
-#### **World-frame**
+##### **World-frame**
 The node fills a `DiceResult` message for each detection:
 
 - Pixel bbox  
@@ -481,7 +481,7 @@ The node fills a `DiceResult` message for each detection:
 All `DiceResult`s are packed into a `DiceResults` message and published.
 
 
-### Board-frame visualisation
+#### Board-frame visualisation
 
 For each detection, a simplified board-frame version is created:
 
@@ -499,7 +499,7 @@ This function:
 These markers provide intuitive feedback in RViz.
 
 
-### End-effector goal markers
+#### End-effector goal markers
 
 A world-frame `PoseStamped` is created for each die.  
 `visualise_pose_in_rviz()` publishes small axis markers to show where the robot will approach from.
@@ -509,7 +509,7 @@ These markers appear on the topic:
 - `dice_ee_goal_markers`
 
 
-### Debug view and GUI
+#### Debug view and GUI
 
 The node maintains an OpenCV window `"Dice Recognition"`.
 
