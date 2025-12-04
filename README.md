@@ -122,136 +122,125 @@ Describe, in a few bullet points:
 
 ### 3.5.1 Custom Messages
 
----
+#### `DiceResult.msg`
 
-#### **`DiceResult.msg`**
-**Fields**
-- `int32 x, y, width, height` — 2D bounding box of the die in pixels  
-- `int32 dice_number` — detected die face (1–6)  
-- `float32 confidence` — YOLO confidence in [0, 1]  
-- `geometry_msgs/Pose pose` — die pose in the world frame  
+| Field | Type | Description |
+|-------|--------|-------------|
+| `x, y, width, height` | `int32` | 2D pixel bounding box of the die |
+| `dice_number` | `int32` | Detected die face value (1–6) |
+| `confidence` | `float32` | YOLO detection confidence |
+| `pose` | `geometry_msgs/Pose` | Die pose in the world frame |
 
-**Usage:**  
-Published by `dice_cv`. Used by `brain` to compute outcomes and generate pick poses.
-
----
-
-#### **`DiceResults.msg`**
-**Fields**
-- `DiceResult[] dice` — all detected dice in a frame/round  
-
-**Usage:**  
-Published on `/dice_results`, consumed by `brain` and the dashboard via rosbridge.
+**Usage:** Published by `dice_cv`; consumed by `brain` to compute outcomes and generate pick poses.
 
 ---
 
-#### **`CupResult.msg`**
-**Fields**
-- `int32 x, y, width, height` — bounding box in warped board frame  
-- `float32 confidence` — detection confidence  
-- `geometry_msgs/Pose pose` — estimated world-frame cup pose  
-- `geometry_msgs/Pose drop_pose` — predefined cup drop location  
+#### `DiceResults.msg`
 
-**Usage:**  
-Published by `cup_cv`. Consumed by `brain` and passed to `moveit_path_planner`.
+| Field | Type | Description |
+|-------|--------|-------------|
+| `dice` | `DiceResult[]` | All detected dice in a frame or round |
+
+**Usage:** Published on `/dice_results`; consumed by `brain` and the dashboard.
 
 ---
 
-#### **`Player.msg`**
-**Fields**
-- `string player_id` — logical identifier  
-- `int32 position` — table position (1–3)  
-- `bool bet_is_odd` — true → odd, false → even  
-- `string[] bet_colors` — detected chip colours  
-- `int32[] bet_x`, `int32[] bet_y` — chip pixel centroids  
-- `int32[] bet_diameter_px` — chip diameters in pixels  
+#### `CupResult.msg`
 
-**Usage:**  
-Represents a single player's inferred bet. Published by `player_cv`.
+| Field | Type | Description |
+|-------|--------|-------------|
+| `x, y, width, height` | `int32` | Cup bounding box in warped board frame |
+| `confidence` | `float32` | Detection confidence |
+| `pose` | `geometry_msgs/Pose` | Cup pose in the world frame |
+| `drop_pose` | `geometry_msgs/Pose` | Predefined cup drop location |
 
----
-
-#### **`Players.msg`**
-**Fields**
-- `Player[] players` — list of all detected players and bets  
-
-**Usage:**  
-Published by `player_cv`. Used by `brain` + dashboard to show table state.
+**Usage:** Published by `cup_cv`; consumed by `brain` and passed to MoveIt.
 
 ---
 
-#### **`RoundResult.msg`**
-**Fields**
-- `bool is_odd` — round outcome  
-- `bool is_complete` — true when the round is finished  
-- `DiceResults dice_results` — final dice configuration  
+#### `Player.msg`
 
-**Usage:**  
-Published by `brain` at end of round for UI display and payout calculation.
+| Field | Type | Description |
+|-------|--------|-------------|
+| `player_id` | `string` | Logical identifier (ArUco ID) |
+| `position` | `int32` | Table position (1–3) |
+| `bet_is_odd` | `bool` | `true` = odd, `false` = even |
+| `bet_colors` | `string[]` | Chip colours |
+| `bet_x`, `bet_y` | `int32[]` | Chip centroids (pixels) |
+| `bet_diameter_px` | `int32[]` | Chip diameters (pixels) |
+
+**Usage:** Published by `player_cv` and used by `brain` and UI.
+
+---
+
+#### `Players.msg`
+
+| Field | Type | Description |
+|-------|--------|-------------|
+| `players` | `Player[]` | List of detected players and their bets |
+
+**Usage:** Shared between `player_cv`, `brain`, and UI.
+
+---
+
+#### `RoundResult.msg`
+
+| Field | Type | Description |
+|-------|--------|-------------|
+| `is_odd` | `bool` | Whether round result is odd |
+| `is_complete` | `bool` | Whether round has finished |
+| `dice_results` | `DiceResults` | Final dice state |
+
+**Usage:** Published at end of round for UI updates and payout calculation.
 
 ---
 
 ### 3.5.2 Custom Actions
 
----
+#### `Movement.action`
 
-#### **`Movement.action`**
-**Goal**
-- `string command` — “cartesian”, “joint”, etc.  
-- `float64[] positions` — target pose/joint values  
-- `string constraints_identifier` — select MoveIt constraints  
+| Section | Fields / Meaning |
+|---------|------------------|
+| **Goal** | `string command`, `float64[] positions`, `string constraints_identifier` |
+| **Result** | `bool success` |
+| **Feedback** | `string status` |
 
-**Result**
-- `bool success`
-
-**Feedback**
-- `string status` — human-readable progress message  
-
-**Usage:**  
-Interface between `brain` and `moveit_path_planner` for UR5e motion execution.
+**Usage:** Interface between `brain` and `moveit_path_planner` for UR5e movements.
 
 ---
 
 ### 3.5.3 Custom Services
 
----
+#### `StartRound.srv`
 
-#### **`StartRound.srv`**
-**Request**
-- `bool start`
+| Component | Fields |
+|-----------|--------|
+| **Request** | `bool start` |
+| **Response** | `bool accepted`, `string message` |
 
-**Response**
-- `bool accepted`  
-- `string message`  
-
-**Usage:**  
-Dashboard/CLI triggers a new round. Handled by `brain`.
+**Usage:** Dashboard → `brain` round trigger.
 
 ---
 
-#### **`GripperCmd.srv`**
-**Request**
-- `int32 width` — 180° open, 0° closed
+#### `GripperCmd.srv`
 
-**Response**
-- `bool success`  
-- `string message`
+| Component | Fields |
+|-----------|--------|
+| **Request** | `int32 width` |
+| **Response** | `bool success`, `string message` |
 
-**Usage:**  
-Low-level gripper control, forwarded to microcontroller by the `gripper` node.
+**Usage:** Low-level gripper command from `brain` to `gripper`.
 
 ---
 
-#### **`ResetGripperCmd.srv`**
-**Request**
-- `bool reset_gripper`
+#### `ResetGripperCmd.srv`
 
-**Response**
-- `bool success`  
-- `string message`
+| Component | Fields |
+|-----------|--------|
+| **Request** | `bool reset_gripper` |
+| **Response** | `bool success`, `string message` |
 
-**Usage:**  
-Re-homes gripper at startup or recovery.
+**Usage:** Re-home the gripper on startup or recovery.
 
 ---
 
