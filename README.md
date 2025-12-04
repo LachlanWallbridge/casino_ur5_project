@@ -789,16 +789,23 @@ Include:
 
 ## 4.4 Closed-Loop Operation
 
-> TODO: Describe your feedback and adaptation mechanisms.
+<!-- > TODO: Describe your feedback and adaptation mechanisms. -->
+`![Overall CloseLoop System](docs/diagrams/closeLoopOverall.png)`
+In this project, the robot operates within a closed-loop perception–action framework. The environment is continuously monitored by the vision system, which detects and updates the poses of the board, cup, and dice. These real-time measurements are fed into the Brain node, where they influence decision-making and motion planning. The Brain then sends updated commands to the robot based on the latest available information, and the robot’s actions subsequently alter the environment, completing the feedback cycle. This loop repeats continuously, allowing the system to adapt its behaviour in response to changing conditions.
 
-Discuss:
+During normal operation, old pose estimates are constantly overwritten with fresh detections, ensuring that the robot always works with the most accurate state of the world. However, once the robot commits to a deterministic action—such as approaching and picking up a dice—the pose updates for that object are temporarily frozen. This prevents noisy or jittery mid-motion corrections that could destabilise the trajectory. The result is a semi–closed-loop hybrid control strategy: real-time feedback governs high-level decisions and target selection, while carefully controlled open-loop execution ensures precise and stable manipulation.
+
+`![Dice CloseLoop Pick-and-Place](docs/diagrams/DiceCloseLoop.png)`
+The dice-handling phase begins with the vision system detecting all dice on the board, determining how many are present, and identifying their face values. During this stage, the dice poses are continuously updated as part of the closed-loop perception system. Once the detections stabilise, the Brain node evaluates the number of dice; if fewer than two are found, the round terminates and the winners are calculated. Otherwise, the dice locations are published to the Brain, which initiates the robot’s motion planning. When a target dice is selected, its pose is temporarily frozen to prevent mid-motion drift, and the robot computes a Cartesian trajectory toward it. The robot then performs a precise grip and pickup, lifts the dice, and moves to a position above the cup. After releasing the dice into the cup, the robot returns to its home position, allowing the camera to reacquire an unobstructed view of the workspace. This cycle repeats while dice remain on the board, with the Brain performing a second detection pass and continuously checking updated pose information between each pickup. Once all dice have been collected, the loop ends and the round is considered complete.
+
+<!-- Discuss:
 
 - What sensor feedback is used (vision, robot state, error signals).
 - How stale or inconsistent data is handled.
 - Examples of adaptive behaviour (e.g. re-detect dice if occluded, replan if path fails).
 - Timing considerations (latency, update rates, synchronisation).
 
----
+--- -->
 
 # 5. Installation and Setup
 
