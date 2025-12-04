@@ -1,6 +1,6 @@
 # MTRN4231: Dice-Playing Robot Casino System
 
-## 1. Table of Contents
+# 1. Table of Contents
 
 - [2. Project Overview](#2-project-overview)
 - [3. System Architecture](#3-system-architecture)
@@ -15,13 +15,13 @@
 
 ---
 
-## 2. Project Overview
+# 2. Project Overview
 
-### 2.1 Problem Statement and Customer
+## 2.1 Problem Statement and Customer
 
 > TODO: Briefly describe the task or problem your system solves, including the intended “customer” or end-user (e.g. casino operator, teaching lab, demonstrator, etc.).
 
-### 2.2 Robot Functionality Summary
+## 2.2 Robot Functionality Summary
 
 > TODO: Summarise the full cycle of the robot (from game initialisation, bet placement, dice rolling, perception, decision making, motion planning, to result visualisation).
 
@@ -31,7 +31,7 @@ Suggested prompts:
 - What actions does it perform on the environment?
 - How does it close the loop between sensing, planning and acting?
 
-### 2.3 Demo Video
+## 2.3 Demo Video
 
 > TODO: Insert a short video (10–30 s) showing one complete, closed-loop game cycle.
 
@@ -43,13 +43,11 @@ For example:
 
 ---
 
-## 3. System Architecture
+# 3. System Architecture
 
-### 3.1 ROS2 Node Graph
+## 3.1 ROS2 Node Graph
 
 > TODO: Include a diagram of your ROS2 nodes, topics, services and actions (e.g. screenshot from `rqt_graph` or a custom schematic).
-
-Example placeholder:
 
 ![ROS2 Node Graph](docs/diagrams/ros2_graph.png)
 
@@ -57,11 +55,10 @@ Brief description:
 
 > TODO: One paragraph summarising the overall data flow (e.g. perception → brain → motion planning → execution → visualisation).
 
-### 3.2 Package-Level Architecture
+## 3.2 Package-Level Architecture
 
 > TODO: Provide a package-level diagram showing how ROS2 packages interact (topic connections, service interactions, shared utilities).
 
-Example placeholder:
 
 ![Package Architecture](docs/diagrams/package_architecture.png)
 
@@ -73,75 +70,681 @@ Describe, in a few bullet points:
 - `casino_dashboard` / web UI: TODO – external visualisation and user interaction.
 - Any other relevant packages.
 
-### 3.3 Behaviour Tree / State Machine
+## 3.3 Behaviour Tree / State Machine
 
 > TODO: Include a behaviour-tree or state-machine diagram describing the closed-loop behaviour across one full game round.
 
-Example placeholder:
 
 ![State Machine](docs/diagrams/state_machine.png)
 
-Suggested states to document (adjust as needed):
+## 3.4 Node Summaries
 
-- `Idle`
-- `WaitForPlayers`
-- `PlaceBets`
-- `RollDice`
-- `PerceiveBoard`
-- `EvaluateOutcome`
-- `AnnounceResults`
-- `ResetRound`
+| Node Name                              | Package              | Role / Description                                                                                                                                                          | Key Topics / Interfaces                                                                                           |
+|----------------------------------------|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `brain`                                | `brain`              | Central game controller. Runs the round state machine, coordinates perception, motion planning and gripper actions, and exposes a simple interface to the dashboard.      | Sub: `/dice_results` (DiceResults), `/cup_result` (CupResult), `/players` (Players) <br> Action client: `/moveit_path_plan` (Movement) <br> Service clients: `/gripper_cmd`, `/start_round` |
+| `cartesian_move_demo` | `moveit_path_planner` | MoveIt-based motion planning and execution server for the UR5e. Handles both Cartesian and joint goals, applies joint constraints and collision objects, and executes plans. | Action server: `/moveit_path_plan` (custom_interface/Movement) <br> Uses MoveGroupInterface for `ur_manipulator` and PlanningScene collision objects                                      |
+| `gripper_server`                       | `gripper`            | Gripper controller. Receives open/close requests and drives the physical end-effector (via microcontroller / IO) with success feedback.                  | Service server: `/gripper_cmd` (GripperCmd)                                                                       |                           |
+| `dice_cv`                        | `perception_cv`      | Detects dice in the camera image, classifies their face values, and estimates 3D poses in the board/world frame for use by the brain and MoveIt planner.                  | Sub: `/camera/color/image_raw` <br> Pub: `/dice_results` (DiceResults) <br> Optional RViz markers (e.g. `/dice_markers`) |
+| `cup_cv`                         | `perception_cv`      | Segments the cup using colour / HSV masks and blob geometry, estimates its centroid and orientation, and publishes a stable pose for grasping and placement.             | Sub: `/camera/color/image_raw` <br> Pub: `/cup_result` (CupResult) <br> Optional RViz markers                          |
+| `aruco_cv`                       | `perception_cv`      | Detects ArUco markers on the game board, estimates the board pose, and maintains the board frame used for pixel-to-board and board-to-world transforms.                  | Sub: `/camera/color/image_raw` <br> Pub: board pose / calibration topic (e.g. `/board_pose`) <br> Broadcasts TF `world → board` |
+| `player_cv`                      | `perception_cv`      | Identifies player ids using aruco detection, and chip locations using colour masking. Constructs and publishes a structured list of players and bets to the brain and dashboard.  | Sub: `/camera/color/image_raw` <br> Pub: `/players` (Players)                                                       |
+| `rosbridge_websocket`                  | `rosbridge_server`   | Bridges ROS2 topics, services and actions to the web dashboard, enabling live game state, dice results and round status to be shown in the browser UI.                   | WebSocket server for dashboard <br> Forwards topics such as `/dice_results`, `/cup_result`, `/players`, game status  |
 
-### 3.4 Node Summaries
 
-> TODO: Briefly describe each node and its responsibilities.
-
-Example table (edit to match your actual node set):
-
-| Node Name           | Package         | Role / Description                                                   | Key Topics / Interfaces                                   |
-|---------------------|-----------------|---------------------------------------------------------------------|-----------------------------------------------------------|
-| `brain`             | `brain`         | Orchestrates game flow, manages state machine and high-level logic. | Subscribes: `/dice_results`, `/cup_result`, etc.          |
-| `dice_detector`     | `dice_cv`       | Detects dice poses and values from camera images.                   | Subscribes: `/camera/color/image_raw`; Publishes: `/dice_results` |
-| `cup_detector`      | `cup_cv`        | Detects the cup pose and orientation.                               | Subscribes: `/camera/color/image_raw`; Publishes: `/cup_result` |
-| `player_detector`   | `player_cv`     | Identifies players and their bets from chips/markers.               | Publishes: `/players`                                    |
-| `moveit_path_planner` | `moveit_path_planner` | Plans UR5e motions for cup/dice manipulation.                       | Actions: `/moveit_path_plan`                             |
-| `rosbridge_websocket` | `rosbridge_server` | Bridges ROS2 topics to the web dashboard.                           | WebSocket interface to dashboard                          |
-
-(Add/remove rows as required.)
-
-### 3.5 Custom Messages and Interfaces
-
-> TODO: List and briefly explain any custom message, service or action types you defined.
-
-Example format:
-
-- `custom_interface/msg/DiceResult.msg`
-  - **Fields:** `x`, `y`, `width`, `height`, `dice_number`, `confidence`, `pose`
-  - **Usage:** Published by `dice_detector`, consumed by `brain` and visualisation.
-- `custom_interface/msg/CupResult.msg`
-  - **Fields:** TODO
-  - **Usage:** TODO
-- `custom_interface/action/Movement.action`
-  - **Purpose:** TODO – coordinate motion planning and execution.
+## 3.5 Custom Messages and Interfaces
 
 ---
 
-## 4. Technical Components
+### 3.5.1 Custom Messages
 
-### 4.1 Computer Vision Pipeline
+---
 
-> TODO: Describe your vision pipeline and how it contributes to the task.
+#### **`DiceResult.msg`**
+**Fields**
+- `int32 x, y, width, height` — 2D bounding box of the die in pixels  
+- `int32 dice_number` — detected die face (1–6)  
+- `float32 confidence` — YOLO confidence in [0, 1]  
+- `geometry_msgs/Pose pose` — die pose in the world frame  
 
-Suggested structure:
+**Usage:**  
+Published by `dice_cv`. Used by `brain` to compute outcomes and generate pick poses.
 
-- Input source(s) (camera model, resolution, frame rate).
-- Pre-processing (e.g. undistortion, cropping, colour-space conversion).
-- Detection methods (YOLO, ArUco, HSV masks, blob detection, etc.).
-- Pose estimation (pixel-to-board, board-to-world transforms).
-- Filtering / tracking (e.g. confidence thresholds, area filtering, temporal smoothing).
-- How vision outputs are fed into the `brain` or planner.
+---
 
-### 4.2 Custom End-Effector
+#### **`DiceResults.msg`**
+**Fields**
+- `DiceResult[] dice` — all detected dice in a frame/round  
+
+**Usage:**  
+Published on `/dice_results`, consumed by `brain` and the dashboard via rosbridge.
+
+---
+
+#### **`CupResult.msg`**
+**Fields**
+- `int32 x, y, width, height` — bounding box in warped board frame  
+- `float32 confidence` — detection confidence  
+- `geometry_msgs/Pose pose` — estimated world-frame cup pose  
+- `geometry_msgs/Pose drop_pose` — predefined cup drop location  
+
+**Usage:**  
+Published by `cup_cv`. Consumed by `brain` and passed to `moveit_path_planner`.
+
+---
+
+#### **`Player.msg`**
+**Fields**
+- `string player_id` — logical identifier  
+- `int32 position` — table position (1–3)  
+- `bool bet_is_odd` — true → odd, false → even  
+- `string[] bet_colors` — detected chip colours  
+- `int32[] bet_x`, `int32[] bet_y` — chip pixel centroids  
+- `int32[] bet_diameter_px` — chip diameters in pixels  
+
+**Usage:**  
+Represents a single player's inferred bet. Published by `player_cv`.
+
+---
+
+#### **`Players.msg`**
+**Fields**
+- `Player[] players` — list of all detected players and bets  
+
+**Usage:**  
+Published by `player_cv`. Used by `brain` + dashboard to show table state.
+
+---
+
+#### **`RoundResult.msg`**
+**Fields**
+- `bool is_odd` — round outcome  
+- `bool is_complete` — true when the round is finished  
+- `DiceResults dice_results` — final dice configuration  
+
+**Usage:**  
+Published by `brain` at end of round for UI display and payout calculation.
+
+---
+
+### 3.5.2 Custom Actions
+
+---
+
+#### **`Movement.action`**
+**Goal**
+- `string command` — “cartesian”, “joint”, etc.  
+- `float64[] positions` — target pose/joint values  
+- `string constraints_identifier` — select MoveIt constraints  
+
+**Result**
+- `bool success`
+
+**Feedback**
+- `string status` — human-readable progress message  
+
+**Usage:**  
+Interface between `brain` and `moveit_path_planner` for UR5e motion execution.
+
+---
+
+### 3.5.3 Custom Services
+
+---
+
+#### **`StartRound.srv`**
+**Request**
+- `bool start`
+
+**Response**
+- `bool accepted`  
+- `string message`  
+
+**Usage:**  
+Dashboard/CLI triggers a new round. Handled by `brain`.
+
+---
+
+#### **`GripperCmd.srv`**
+**Request**
+- `int32 width` — 180° open, 0° closed
+
+**Response**
+- `bool success`  
+- `string message`
+
+**Usage:**  
+Low-level gripper control, forwarded to microcontroller by the `gripper` node.
+
+---
+
+#### **`ResetGripperCmd.srv`**
+**Request**
+- `bool reset_gripper`
+
+**Response**
+- `bool success`  
+- `string message`
+
+**Usage:**  
+Re-homes gripper at startup or recovery.
+
+---
+
+# 4. Technical Components
+
+## 4.1 Computer Vision Pipeline
+
+The perception stack is split into separate ROS2 nodes for board localisation, cup detection, dice detection and player / chip detection. Each node subscribes to a colour camera stream and publishes geometric information (poses, chip locations, bets) that the `brain` node uses to drive the game.
+
+### 4.1.1 ArUco Board Detection (`aruco_cv`)
+
+The ArUco node establishes the **`board_frame`**, which is the common reference for every other CV module and for motion planning. All dice, cup and player coordinates are ultimately expressed relative to this frame.
+
+#### Purpose in the system
+
+- Detect the four ArUco markers attached to the corners of the physical board.
+- Estimate the board’s pose relative to the camera and world.
+- Produce the **rectified, top-down board image** used by all other vision pipelines.
+- Publish simple RViz markers so the board alignment can be checked easily.
+
+#### Inputs & Setup
+
+- **RGB image** from the depth camera  
+  (`/camera/camera/color/image_raw`, configurable via `color_topic`)
+- **Camera intrinsics** from `/camera/camera/aligned_depth_to_color/camera_info`
+- **Processing throttle**: the node only processes every **4th frame** to keep CPU usage low.
+
+The TF tree produced is:
+
+```
+world
+└── camera_frame
+    └── board_frame
+```
+
+#### Raw Camera View
+
+![Raw ArUco detection](docs/media/aruco_raw.png)
+
+#### Detecting the board corners
+
+Each frame:
+
+1. The image is converted to BGR via `CvBridge`.
+2. The node runs ArUco detection using the `DICT_4X4_250` family.
+3. It extracts the centroids of markers **0, 1, 2, 3**, representing TL, TR, BR, BL.
+4. If fewer than 4 markers are visible, the frame is skipped. The last valid pose is retained.
+
+#### Estimating the board pose
+
+Using the four detected centroids:
+
+- Compute the **board centre** in pixel space.
+- Using camera intrinsics and a fixed height, back-project to metric `(x, y)`.
+- Estimate the **board yaw** from the average direction of its edges, yielding a smooth and stable orientation estimate.
+
+The transform is published as:
+
+- Parent: **`camera_frame`**  
+- Child: **`board_frame`**
+
+with translation `(x, y, CAM_HEIGHT_M)` and yaw-derived rotation.
+
+#### Warped top‑down board image
+
+The node computes a homography using the board corners, mapping them to a target space matching the physical board size:
+
+- Destination dimensions: **`BOARD_W_MM × BOARD_H_MM`**
+- Result: **1 pixel = 1 mm** in the warped image
+
+Published on:
+
+- **`board/warped_image`**
+
+#### Warped Board View
+
+![Warped board](docs/media/board_warped.png)
+
+#### RViz markers
+
+Corner points are transformed into the warped image and then into metric board coordinates.  
+For each (`TL`, `TR`, `BR`, `BL`), the node publishes:
+
+- A cube marker in `board_frame`
+- A text label above the cube
+
+This visualisation confirms stable detection and consistent alignment.
+
+#### Downstream use
+
+Other CV modules rely on the board frame:
+
+- **dice_cv** — converts dice detections into world-frame picking poses
+- **cup_cv** — locates the cup base and orientation
+- **player_cv** — assigns chips to the correct betting zones
+
+If detection fails, the transform is not updated, preventing jumps in downstream components.
+
+---
+
+
+## 4.1.2 Dice Detection (`dice_cv`)
+
+The dice detection pipeline operates on the **rectified, top‑down board image** produced by the ArUco node. Its job is to detect dice reliably, estimate their orientation, and output usable 3D poses for the robot.
+
+
+### Purpose in the system
+
+- Detect all dice visible on the board.
+- Classify each die’s face value (1–6).
+- Estimate the die’s in‑plane rotation (yaw).
+- Convert pixel positions into **board-frame** and **world-frame** coordinates.
+- Publish structured detections and visual markers used by the robot and UI.
+
+
+### Inputs and outputs
+
+#### **Subscribed**
+- `board/warped_image` (Image) — top‑down view of the board.
+
+#### **Published**
+- `dice_results` (DiceResults) — world-frame poses of dice.
+- `dice_markers` (MarkerArray) — board-frame RViz cubes and labels.
+- `dice_ee_goal_markers` (MarkerArray) — end-effector goal visualisations.
+
+#### **Model**
+- Loads a custom YOLO model (`best.pt`) from `perception_cv/dice_cv/weights`.
+
+#### **TF**
+Uses the existing TF chain:
+
+```
+world
+└── camera_frame
+    └── board_frame
+```
+
+
+### Annotated Dice Detections
+
+The warped-board view includes:
+
+- Rotated bounding boxes  
+- Dice value + confidence  
+- Orientation arrow  
+- Crop region rectangle  
+
+![Dice detection on warped board](docs/media/dice_board_annotated.png)
+
+
+### Processing overview
+
+#### 1. **Pre‑processing and crop**
+- Incoming warped image is converted via `CvBridge`.
+- A rectangular crop is taken from the **upper half** of the board where dice land.
+- YOLO inference runs only on this crop (faster, fewer false positives).
+- The crop region is drawn in green on the final debug image.
+
+
+#### 2. **YOLO inference**
+Each YOLO detection produces a bounding box, class index, and confidence.
+
+- Detections below **0.55 confidence** are ignored.
+- The node keeps track of:
+  - `dice_count`
+  - `total_sum` (sum of all detected die values)
+- These are drawn in the debug overlay.
+
+
+### Rotation estimation (simple contour method)
+
+For each YOLO bounding box:
+
+1. Extract the die region from the full warped image.  
+2. Convert to grayscale, apply Otsu thresholding.  
+3. Find external contours; select the largest.  
+4. Fit a `minAreaRect` to determine the die’s rotation angle.  
+5. Convert OpenCV’s clockwise angle into a usable yaw.
+
+If anything fails (no contour, noisy threshold), yaw defaults to **0°**, and the frame continues safely.
+
+A rotated bounding box is redrawn around the die for clarity.
+
+
+### Converting pixels → board and world
+
+#### **Board-frame coordinates**
+```
+pixel_to_board_coords(
+    x_px = centre_x,
+    y_px = centre_y,
+    img_w, img_h,
+    z_offset = DICE_HALF_HEIGHT (0.03m)
+)
+```
+
+Returns `(x_m, y_m, z_m)` in **metres** inside the `board_frame`.
+
+#### **World-frame pose**
+```
+pixel_to_world_pose(..., yaw_rad, tf_buffer)
+```
+
+- Uses camera intrinsics + `world → camera_frame` TF.  
+- Outputs a full `PoseStamped` in the `world` frame.  
+- If TF lookup fails, that dice detection is skipped.
+
+#### **Yaw correction for MoveIt**
+The robot’s tool convention requires a 180° flip around the Y-axis:
+
+```
+pose.orientation = orientation ⨉ quaternion_from_euler(0, π, 0)
+```
+
+This ensures the die is approached correctly.
+
+
+### Publishing results
+
+#### **World-frame**
+The node fills a `DiceResult` message for each detection:
+
+- Pixel bbox  
+- `dice_number`, `confidence`  
+- Corrected world-frame pose  
+
+All `DiceResult`s are packed into a `DiceResults` message and published.
+
+
+### Board-frame visualisation
+
+For each detection, a simplified board-frame version is created:
+
+- Position: `(x_m, y_m, z_m)`
+- Orientation: yaw-only quaternion
+- Passed to `publish_dice_markers()`
+
+This function:
+
+- Clears old markers using `DELETEALL`
+- Publishes:
+  - A **red cube** at the dice location
+  - A **white text label** showing the dice value just above it
+
+These markers provide intuitive feedback in RViz.
+
+
+### End-effector goal markers
+
+A world-frame `PoseStamped` is created for each die.  
+`visualise_pose_in_rviz()` publishes small axis markers to show where the robot will approach from.
+
+These markers appear on the topic:
+
+- `dice_ee_goal_markers`
+
+
+### Debug view and GUI
+
+The node maintains an OpenCV window `"Dice Recognition"`.
+
+Overlays include:
+
+- Crop region  
+- Rotated bounding boxes  
+- Dice number + confidence  
+- Dice count & total sum  
+
+A small timer ensures the GUI stays responsive even when no new frames arrive.
+
+This makes it easy to verify that:
+
+- YOLO detects only the intended dice region  
+- Rotations look stable  
+- World-frame poses are reasonable before being passed to the `brain`
+
+---
+
+
+### 4.1.3 Cup Detection (`cup_cv`)
+
+The cup detection pipeline works on the same rectified board image as the dice node and produces a single, stable pick pose for the cup. It combines a simple colour mask with geometry-based reasoning to estimate both the base position of the cup and the direction the gripper should approach from.
+
+#### Role in the system
+
+- Find the yellow cup on the warped board image.
+- Estimate the pose of the cup base in both the `board_frame` and `world` frames.
+- Infer a consistent pickup direction for the UR5e gripper.
+- Publish a `CupResult` message that the `brain` and motion planner can use directly.
+
+#### Inputs and outputs
+
+- **Subscribed topics**
+  - `Image` on **`board/warped_image`** – the top-down board view produced by the ArUco node.
+- **Publishers**
+  - `CupResult` on **`cup_result`** – world-frame pose and bounding box of the cup.
+  - `MarkerArray` on **`cup_markers`** – board-frame 3D box for RViz.
+  - `MarkerArray` on **`cup_ee_goal_markers`** – end-effector target pose for the gripper.
+- **TF**
+  - Uses a `tf2_ros.Buffer` and `TransformListener` to access the `world → camera_frame → board_frame` transforms.
+
+#### Colour mask and cropping
+
+To make detection simple and robust, the node only looks at the region of the board where the cup is expected to appear and applies a yellow colour mask.
+
+- The incoming warped board image is cropped to the upper central region:
+  - A horizontal padding of about 110 px on each side.
+  - Only the top half of the warped board (similar to the dice node).
+- The cropped region is converted to HSV and thresholded using a fixed yellow range.
+- A small morphological open/close operation removes isolated noise and fills gaps.
+- The resulting binary mask is shown in a separate debug window for tuning.
+
+**Cup colour mask**:
+
+![Cup colour mask](docs/media/cup_mask.png)
+
+#### Selecting the cup blob
+
+- All external contours in the mask are extracted.
+- The node keeps only the largest contour above a minimum area threshold (`MIN_CONTOUR_AREA`) so that small specks of noise are ignored.
+- If no valid contour is found:
+  - An empty `CupResult` is published.
+  - The current frame is shown for debugging and the callback returns early.
+
+Once a valid contour is found, it is treated as the visible footprint of the cup in the cropped image.
+
+#### Orientation and base footprint
+
+Rather than relying only on the raw contour, the node enforces a known footprint for the cup:
+
+- A rotated bounding box (`cv2.minAreaRect`) is fitted to the contour.
+- Among the rectangle’s edges, the node chooses the long edges and biases towards those that are more vertical in the image. This stabilises the orientation when the box becomes nearly square.
+- Using this long edge and a known physical footprint (approximately 10×4 cm), the node reconstructs a clean base rectangle that:
+  - Shares the leftmost long edge of the fitted box.
+  - Extends inward across the board by the known width of the cup base.
+
+The centroid of this reconstructed base rectangle is used as the cup base position in the cropped image.
+
+#### Visual annotations on the warped board
+
+For each frame, the node draws several overlays on the full warped board image:
+
+- **Green box** – the original rotated bounding box around the detected yellow blob.
+- **Yellow box** – the reconstructed base rectangle that enforces the correct cup footprint.
+- **Red dot** – the centroid of the reconstructed base, interpreted as the cup base.
+- **Blue arrow** – the approach direction for the gripper, derived from the estimated yaw.
+
+All of these are drawn in full-image coordinates (after accounting for the crop offset), giving an intuitive view of what the node thinks the cup pose and pickup direction are.
+
+**Cup detection on warped board**:
+
+![Cup detection with centroid and pickup direction](docs/media/cup_board_annotated.png)
+
+#### Converting to board and world poses
+
+Once the base centroid has been found in full-image pixel coordinates:
+
+- The node calls `pixel_to_board_coords(...)` with a small height offset (`CUP_HALF_HEIGHT = 0.06` m) to obtain `(x, y, z)` in the `board_frame`.
+- It also calls `pixel_to_world_pose(...)` with the same pixel centre, height offset and yaw angle to obtain a `PoseStamped` in the `world` frame.
+- If TF lookup fails, the node logs a warning and skips publishing a cup pose for that frame.
+
+#### Publishing `CupResult`
+
+The main world-frame output is a `CupResult` message:
+
+- 2D bounding box fields (`x`, `y`, `width`, `height`) describe the cup in full warped-image pixels.
+- `confidence` is set to 1.0 (the node assumes exactly one cup is present once a valid blob is found).
+- `pose` holds the final world-frame pose that the UR5e end-effector should move to above the cup.
+- `drop_pose` is initially copied from the same world pose and can be used as a starting point for where the cup will be placed.
+
+Before publishing, the node adjusts this pose to better match the end-effector frame and tool geometry:
+
+- A local offset of about 14 cm along the cup’s local X-axis is applied so that the wrist target sits behind the cup rather than at its centre.
+- An additional fixed rotation is applied to align the gripper with the cup axis using a pre-defined Euler rotation (`π/2, π, π/2`).
+
+These adjustments mean that downstream components (the `brain` and motion planner) can treat `cup_result.pose` as a ready-to-use end-effector goal.
+
+#### Board-frame markers and RViz view
+
+For visualisation in `board_frame`:
+
+- The node builds a simplified `CupResult` with:
+  - Position `(x_m, y_m, z_m)` in `board_frame`.
+  - Orientation constructed from the estimated yaw.
+- It publishes a `MarkerArray` on `cup_markers` that contains:
+  - A yellow 3D box that roughly matches the cup dimensions (10×4×8 cm) and is positioned so that the base sits on the board surface.
+
+To visualise the end-effector goal, the node also:
+
+- Wraps the world pose in a `PoseStamped` with `frame_id = "world"`.
+- Calls `visualise_pose_in_rviz(...)` with `cup_ee_goal_markers` as the publisher, drawing an axes marker at the intended approach pose above the cup.
+
+#### Debugging and GUI
+
+- An OpenCV window named `Cup Detection` shows the main warped-board view with all annotations (bounding boxes, centroid, and approach arrow).
+- A separate window (`Cup Mask`) shows the current yellow mask, which is useful for tuning the HSV thresholds.
+- A small timer (`gui_timer`) keeps the GUI responsive by regularly calling `cv2.waitKey(1)` even when new images are not arriving.
+
+Together, the colour mask, geometric reconstruction and RViz markers make it easy to see how the system is interpreting the cup’s position and orientation before the UR5e commits to a pick-up motion.
+
+---
+
+### 4.1.4 Player and Bet Detection (`player_node`)
+
+The player detection pipeline is responsible for mapping physical players and their chips on the board to a structured `Players` message that the `brain` and dashboard can use. It runs on the warped board image, reuses the same coordinate system and divides the table into three logical zones, one per player.
+
+#### Role in the system
+
+- Detect which player positions (1–3) are currently active using ArUco markers.
+- Segment and classify coloured chips in the betting area.
+- Assign chips to players based on their horizontal zone.
+- Publish a `Players` message containing chip locations, colours and diameters for each player.
+- Provide simple RViz markers so player positions can be checked at a glance.
+
+#### Inputs and outputs
+
+- **Subscribed topics**
+  - `Image` on **`board/warped_image`** – top-down board view produced by the ArUco node.
+- **Publishers**
+  - `Players` on **`players`** – list of players and their detected chips/bets.
+  - `MarkerArray` on **`player_markers`** – cube + text markers in `board_frame` for each player.
+
+#### Annotated player view
+
+The main debug view shows:
+- The ArUco marker bounding boxes and player labels (`P1`, `P2`, `P3`).
+- Blue rectangular “zones” corresponding to each player’s betting area.
+- Circles around detected chips, coloured by chip colour and annotated with size and zone.
+
+This is captured in a warped-board image like:
+
+![Player detection and zones](docs/media/player_board_annotated.png)
+
+#### Cropping and player zones
+
+Players and chips are only expected in the lower half of the warped board image. To simplify processing and avoid interference with dice and cup graphics:
+
+- The node crops the **bottom half** of the warped image, with a horizontal padding of about 100 px on each side.
+- This cropped region defines the “player area” where ArUco tags and chips are searched for.
+- The horizontal span of the player area is split evenly into **three zones** (left, middle, right). Each zone corresponds to one logical player position:
+  - Zone 1 → Player position 1 (left)
+  - Zone 2 → Player position 2 (centre)
+  - Zone 3 → Player position 3 (right)
+
+On the debug image, the overall player area is outlined, and each zone is shown as a separate rectangle with a `Zone 1/2/3` label at the top.
+
+#### Player detection with ArUco markers
+
+Players are identified using ArUco markers placed near each player’s seat:
+
+- The node runs ArUco detection (`DICT_4X4_250`) on the cropped player region.
+- For each detected marker:
+  - The marker centre is converted back into full-image coordinates using the crop offsets.
+  - The x-position is compared to the pre-defined zone bounds to determine which of the three positions (1–3) this marker belongs to.
+  - The marker centre is converted to metric board coordinates using `pixel_to_board_coords(...)`.
+  - A `Player` message is created with:
+    - `player_id` set to the numeric ArUco ID.
+    - `position` set to 1, 2 or 3 based on the zone.
+    - Empty arrays for chip information (`bet_colors`, `bet_x`, `bet_y`, `bet_diameter_px`) that will be filled later.
+- Simple RViz markers are created for each player:
+  - A small green cube at the player’s board-frame position.
+  - A text label above the cube, e.g. “Player 23”.
+
+On the debug image, each marker location is annotated with a label `P{position}`, so you can see at a glance which real-world marker is mapped to which logical seat.
+
+#### Chip detection and assignment to players
+
+After players are located, the node looks for circular chips within the same player area:
+
+- The cropped region is converted to HSV colour space.
+- For each colour class (blue, green, red, white), a dedicated HSV range is applied to create a mask.
+- A small morphological close and median blur clean up the mask.
+- Contours are detected in each mask, and only those that look like valid chips are kept, using:
+  - Approximate diameter limits (between `LOWER_LIMIT` and `UPPER_LIMIT` pixels).
+  - An area check consistent with that diameter.
+  - A solidity check to reject irregular or fragmented blobs.
+- For each accepted contour:
+  - The centre `(cx, cy)` and diameter are computed from the minimum enclosing circle.
+  - The global image coordinates are reconstructed using the crop offsets.
+  - The x-position is used to determine which zone (1–3) the chip belongs to.
+
+Chips are then assigned to players:
+
+- For each chip, the node finds the `Player` whose `position` matches the chip’s zone.
+- The chip’s properties are appended to that player’s arrays:
+  - `bet_colors` (e.g. `"blue"`, `"red"`, `"green"`, `"white"`)
+  - `bet_x`, `bet_y` (pixel centroids in the warped image)
+  - `bet_diameter_px` (measured chip size in pixels)
+
+On the debug image, each chip is drawn as a coloured circle with a short label containing its colour, approximate diameter and zone (e.g. `blue (36px) Z2`).
+
+#### Published messages and markers
+
+At the end of each frame:
+
+- A `Players` message containing all active `Player` entries is published on `/players`. This exposes, for each logical seat:
+  - The ArUco-derived `player_id` and table position.
+  - A list of chip colours and pixel locations that the `brain` and dashboard can interpret as bets.
+- A `MarkerArray` with cubes and text labels for each player is published on `/player_markers`, rendered in the `board_frame` for RViz.
+
+These outputs give the rest of the system a clean, geometry-aware view of “who is sitting where” and “which chips are in front of which player”, without needing to re-run any image processing.
+
+#### Debugging and GUI
+
+- An OpenCV window named `Player Detection` shows the warped board with:
+  - The player region outline.
+  - The three zone rectangles.
+  - ArUco-based player positions (`P1`, `P2`, `P3`).
+  - Coloured chip overlays.
+- A small timer (`gui_timer`) keeps the window responsive by calling `cv2.waitKey(1)` periodically, even if new images are not arriving.
+
+This view makes it easy to verify that:
+- Players are being assigned to the correct seat positions.
+- Chips fall inside the expected zones.
+- The mapping from physical layout → warped image → board frame is behaving as intended before the `brain` uses these detections to drive game logic.
+
+
+## 4.2 Custom End-Effector
 
 > TODO: Describe and document your custom end-effector.
 
@@ -154,7 +757,7 @@ Include:
 - Control overview: how the end-effector is actuated (e.g. via Teensy, IO, vacuum).
 - ROS integration: topics / services / actions used to control it.
 
-### 4.3 System Visualisation
+## 4.3 System Visualisation
 
 > TODO: Explain how your system is visualised.
 
@@ -166,7 +769,7 @@ Include:
 - Screenshots or GIFs:  
   `![RViz Visualisation](docs/media/rviz_view.png)`
 
-### 4.4 Closed-Loop Operation
+## 4.4 Closed-Loop Operation
 
 > TODO: Describe your feedback and adaptation mechanisms.
 
@@ -179,11 +782,11 @@ Discuss:
 
 ---
 
-## 5. Installation and Setup
+# 5. Installation and Setup
 
 > TODO: Provide clear, step-by-step instructions to reproduce your development environment and run the system on a fresh machine.
 
-### 5.1 Requirements
+## 5.1 Requirements
 
 ```bash
 pip install -r requirements.txt
@@ -197,7 +800,7 @@ sudo apt install ros-humble-tf-transformations
 
 (Add any additional ROS packages, Python dependencies or system libraries here.)
 
-### 5.2 Workspace Setup
+## 5.2 Workspace Setup
 
 > TODO: Describe how to clone and build the ROS2 workspace.
 
@@ -216,7 +819,7 @@ Suggested steps (edit as needed):
 2. Mention any required branches or tags.
 3. Note any environment variables that must be set (e.g. `UR_TYPE`, `ROS_DOMAIN_ID`, etc.).
 
-### 5.3 Hardware Setup
+## 5.3 Hardware Setup
 
 > TODO: Describe the hardware required and how it should be connected.
 
@@ -227,7 +830,7 @@ Include subsections such as:
 - **End-effector controller (Teensy, etc.)**: USB port, baud rate, firmware location.
 - Any other sensors or devices.
 
-### 5.4 Configuration and Calibration
+## 5.4 Configuration and Calibration
 
 > TODO: Document configuration files and calibration procedures.
 
@@ -239,9 +842,9 @@ Include:
 
 ---
 
-## 6. Running the System
+# 6. Running the System
 
-### 6.1 One-Command Launch
+## 6.1 One-Command Launch
 
 > TODO: Provide the single command that launches the full system (no manual sequencing).
 
@@ -269,7 +872,7 @@ ros2 launch brain brain.launch.py
 
 (Replace with your actual package / launch file names.)
 
-### 6.3 Expected Behaviour
+## 6.3 Expected Behaviour
 
 > TODO: Describe what a user should see when the system is running correctly.
 
@@ -279,7 +882,7 @@ For example:
 - Web dashboard shows current bets, dice results and round status.
 - The robot moves through the game sequence without manual intervention.
 
-### 6.4 Troubleshooting
+## 6.4 Troubleshooting
 
 > TODO: Provide brief troubleshooting tips.
 
@@ -292,7 +895,7 @@ Examples:
 
 ---
 
-## 7. Results and Demonstration
+# 7. Results and Demonstration
 
 > TODO: Summarise how the system performs against its design goals.
 
@@ -315,7 +918,7 @@ Example placeholder for a results figure:
 
 ---
 
-## 8. Discussion and Future Work
+# 8. Discussion and Future Work
 
 > TODO: Reflect on engineering challenges and potential improvements.
 
@@ -332,7 +935,7 @@ Include:
 
 ---
 
-## 9. Contributors and Roles
+# 9. Contributors and Roles
 
 > TODO: List team members and their primary responsibilities.
 
@@ -348,7 +951,7 @@ Example table:
 
 ---
 
-## 10. Repository Structure
+# 10. Repository Structure
 
 > TODO: Briefly describe the folder structure of your repository.
 
@@ -360,9 +963,9 @@ Example (edit to match your repo):
 ├── src/
 │   ├── brain/                # High-level game logic and coordination
 │   ├── perception_cv/        # Computer vision utilities and transforms
-│   ├── dice_cv/              # Dice detection node/package
-│   ├── cup_cv/               # Cup detection node/package
-│   ├── player_cv/            # Player / chip detection
+│   │   ├── dice_cv/              # Dice detection node/package
+│   │   ├── cup_cv/               # Cup detection node/package
+│   │   └── player_cv/            # Player / chip detection
 │   └── moveit_path_planner/  # UR5e motion planning and execution
 ├── docs/
 │   ├── diagrams/             # Architecture, state machine, node graphs
@@ -376,9 +979,9 @@ Example (edit to match your repo):
 
 ---
 
-## 11. References and Acknowledgements
+# 11. References and Acknowledgements
 
-### 11.1 References
+## 11.1 References
 
 > TODO: Credit any external libraries, tutorials or prior codebases.
 
@@ -390,7 +993,10 @@ Examples:
 
 (Provide links or citations as appropriate.)
 
-### 11.2 Acknowledgements
+https://github.com/N3VERS4YDIE/dice-recognition
+
+
+## 11.2 Acknowledgements
 
 > TODO: Acknowledge people and organisations who helped.
 
