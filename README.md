@@ -18,30 +18,53 @@
 ## 2. Project Overview
 
 ### 2.1 Problem Statement and Customer
+Casinos continue to rely on human-operated table games. This results in high operational costs, inconsistent gameplay speed, and increased risk of human error. At the same time, players seek fast, transparent, and beginner-friendly gaming experiences, while casinos demand compact, reliable, and regulation-compliant automated solutions. There is currently a gap in the market for a small-footprint, visually verifiable, automated dice game suitable for high-density casino floors.
+   
+This project demonstrates the automation of the a game called "Odds & Evens Dice Game" as a proof-of-concept for introducing low-cost, high-turnover robotic casino games.
 
-> TODO: Briefly describe the task or problem your system solves, including the intended “customer” or end-user (e.g. casino operator, teaching lab, demonstrator, etc.).
+| Category | Requirement ID | Description |
+|----------|----------------|-------------|
+| Functional | F1 | Fully automated dice rolling and return to cup |
+|  | F2 | Automatic evaluation of bets and payout calculation |
+| | F3 | Visual confirmation of physical dice results |
+| | F4 | Real-time display of game status, results, and betting windows |
+| | F5 | Compatibility with standard casino betting interfaces (e.g. chips) |
+| Performance| P1 | Short time from game start to dice roll |
+|  | P2 | Low latency vision pipeline |
+| | P3 | True randomness |
+|| P4 | Transparent operation — dice visible throughout game cycle |
+|| P5 | Pick-up accuracy and repeatability |
+| User Experience | UX1 | Simple, intuitive gameplay suitable for novice users |
+|| UX2 | Clear, readable on-screen instructions and outcomes |
+|| UX3 | Visual feedback for game events |
+|| UX4 | Accessible interface |
+
 
 ### 2.2 Robot Functionality Summary
 
-> TODO: Summarise the full cycle of the robot (from game initialisation, bet placement, dice rolling, perception, decision making, motion planning, to result visualisation).
+At startup the game frontend is launched. The perception pipeline start by identifying the 4 ArUco that mark the corners of the game board. From this, it begins identfying the dice, cup, and player states. The board state should begin as seen below: with the dice in the cup and placed in the designated play area - which is the area covered in green felt - and the player sections should be clear of aruco markers and chips.
 
-Suggested prompts:
+> TODO: Image of board state 1
 
-- What does the robot perceive?
-- What actions does it perform on the environment?
-- How does it close the loop between sensing, planning and acting?
+The players should now place their ArUco marker ID's in a designated player section. The systems perception will automatically detect the player markers and populate the front end with player information.
+
+> TODO: Image of front end state 1
+
+With our players in, they may being placing bets. Once again the systems perception will automatiaclly detect the bets and populate the fround end based on the bets placed on the board. Once bets are placed, our players make their prediction on the dice outcome through the front end. Once all players have made a prediction the start button will become availible. 
+
+> TODO: Image of front end state 2
+
+After the start button is pressed, the robot will move to a designated 1st position and open the gripper. It will then move to pick up the cup based on the perception pipelines prediction of cup position and orientation. The robot will pick up the dice cup, lift it slightly make a roll and the place the cup back down in it's starting position. The robot will now return back to the designated 1st position. Now the yolo model works to identify the dice outcome which is then reported to the front end, confirming the results of the round and allowing dealers to handle payout. 
+
+> TODO: Image of front end state 3
+> Image of board state 2
+
+The robot now moves to each die, picking it up and placing it back in the cup, before returning to the home position.  
 
 ### 2.3 Demo Video
 [![Watch the Demo](https://img.icons8.com/fluency/240/youtube-play.png)](https://drive.google.com/file/d/1irMjWqZdTdLUCx5GPTzw7JCPZO1h40ZF/view?usp=drive_link)
 
-
-> TODO: Insert a short video (10–30 s) showing one complete, closed-loop game cycle.
-
-For example:
-
-[![System Demo](docs/media/demo_thumbnail.png)](https://link.to/your/demo/video)
-
-(Add a short caption describing what the viewer should look for.)
+above is a sped up video showing the system performing 1 round of gameplay.  
 
 ---
 
