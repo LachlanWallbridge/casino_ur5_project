@@ -986,14 +986,59 @@ There will be 8 new terminals appeared on the screen with the following titles:
 
 ## 6.4 Troubleshooting
 
-> TODO: Provide brief troubleshooting tips.
+### **No camera images are received**
 
-Examples:
+If RViz or the CV windows do not show camera images:
 
-- What to check if no camera images are received.
-- What to check if TF frames are missing or misaligned.
-- Common build issues and how to fix them.
-- Known limitations or required workarounds.
+- Check the **RealSense Camera terminal** for messages like *"camera not found"* or failed device initialization.
+- Use `lsusb` to confirm the RealSense camera is detected by the system.
+- If the camera does not appear, unplug and reconnect it.  
+  Ensure the camera is plugged into a **USB 3.0 port** (blue port). Avoid hubs if possible.
+
+---
+
+### **Game cannot be started from the frontend**
+
+If pressing **Start Round** does not begin the game:
+
+- Make sure all players have selected **Odd** or **Even**.
+- Confirm that CV image windows (cup, players, board) are updating.  
+  If they are frozen, adjust board position, move the robot out of the camera's view, or improve lighting conditions.
+
+If the player marker appears **glitchy or unstable** in the frontend:
+
+- Replace the player tag with a **non-reflective ArUco marker**, as shiny surfaces cause jittery detection.
+
+If the round starts but the robot does not move:
+
+- Check the **Brain Node terminal** for messages such as “move action failed”.
+- Check the **Real Robot terminal** to determine whether the issue is an **execution timeout** or a **catastrophic error**.
+- For timeouts, restart the system and ensure the UR5e teach pendant is set to allow ROS control by pressing *Play* when prompted.
+- For catastrophic errors, reposition the board lower closer to player to avoid robot getting too close to the back collision wall.
+
+---
+
+### **CV detection limitations and object tracking issues**
+
+If dice or cup are not being detected or disappear in the interface:
+
+- Ensure the dice and cup stay within the **green area**.  
+  The CV system can only detect objects inside this region.
+- If dice roll outside the carpet during shaking, manually place them back within the green area.
+- Apply the same rule for the cup; it must remain within the detectable region.
+- If dice or the cup are too far from the robot's workspace, **MoveIt path planning will fail**.  
+  Adjust the board or objects so they remain reachable by the robot.
+
+---
+
+### **Gripper does not respond**
+
+If the gripper does not open or close:
+
+- Use the **VSCode Serial Monitor** to check that the selected serial port matches the one defined in the gripper server code.
+- Verify the **power supply** to the gripper controller and servo driver, ensuring stable voltage is being provided.
+
+---
 
 ---
 
