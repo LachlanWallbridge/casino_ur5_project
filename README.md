@@ -954,6 +954,22 @@ Suggested structure:
 - Figures and media:
   - Plots or tables of results (accuracy, timing).
   - Photos or GIFs showing successful rounds and edge cases.
+ 
+The system successfully implements autonomous dice rolling, pickup, and return to cup — in line with requirement F1. Through the front-end we see the system evaluating bets and handling payout logic as required by F2. The front end displays dice results and confirms the parity for communication of the game outcome, fulfilling F3. The robot's joint states and end effector, as well as the position and orientation of the board, dice, and cup, are all visualised in RVIZ. This ensures we have met requirement F4. Player bets are made using chips, matching requirement F5.
+
+Over a period of 8 games, 4 movement errors were seen. In each game cycle, 10 movements occur. Thus, 76/80 movements were seen to be successful. During these 8 games, dice pickup position was seen to be accurate to around 0.75 mm. These results indicate success in achieving requirement P5 — Pick-up accuracy and repeatability.
+
+TODO: Add PieChart
+
+The overall time for a game cycle was seen to be 90 seconds on average. The dice phase of the cycle was consistently below 20 seconds, with the remaining 70 seconds dedicated to placing the dice back into the cup and returning to the home position. This allows for quick gameplay through fast dice rolling and then adequate time after a dice result for the players to handle payout and place new bets. Thus the metric P1, Short time from game start to dice roll, has been met.
+
+Throughout a game cycle, the handling of the dice is open and easy to see. This fulfills the need for transparent operation as outlined by P4. No pattern to dice outcome was observed throughout multiple rounds of gameplay. The final dice position after a roll is also highly variable. These indicate that there is true randomness in the dice rolls as desired by P3.
+
+When the ArUco markers at the corner of the board are not occluded to the camera’s vision, the system consistently outputs image processing results in under a second. This meets the requirement outlined by P2 for a low latency vision pipeline.
+
+The front end provides clear feedback about the state of the game. This includes player records, balances, bets, and prediction, in addition to informing the users of when the system is waiting for input and when it is waiting for the start game button to be pressed. After a game the dice outcome is clearly shown and player records and balances are updated. The frontend is thus seen to provide clear on-screen instructions and visual feedback in line with UX2 and UX3.
+
+Users have provided positive feedback on the front end and the game experience. Users have been able to play after a quick and minimal onboarding. These indicate achievement of UX1 and UX4.
 
 Example placeholder for a results figure:
 
