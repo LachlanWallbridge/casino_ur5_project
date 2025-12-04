@@ -255,11 +255,23 @@ Describe, in a few bullet points:
 
 # 4. Technical Components
 
+<p align="center">
+  <img src="docs/media/dice_board_annotated.png" height="140" />
+  <img src="docs/media/gripper_iso.png" height="140" />
+  <img src="docs/media/rviz_view.png" height="140" />
+  <img src="docs/diagrams/BehaviorTree.png" height="140" />
+</p>
+
+
 ## 4.1 Computer Vision Pipeline
 
 The perception stack is split into separate ROS2 nodes for board localisation, cup detection, dice detection and player / chip detection. Each node subscribes to a colour camera stream and publishes geometric information (poses, chip locations, bets) that the `brain` node uses to drive the game.
 
 ### 4.1.1 ArUco Board Detection (`aruco_cv`)
+
+<details>
+<summary><strong>ArUco Board Detection Implementation</strong> (click to expand)</summary>
+
 
 The ArUco node establishes the **`board_frame`**, which is the common reference for every other CV module and for motion planning. All dice, cup and player coordinates are ultimately expressed relative to this frame.
 
@@ -366,10 +378,14 @@ Other CV modules rely on the board frame:
 
 If detection fails, the transform is not updated, preventing jumps in downstream components.
 
+</details>
+
 ---
 
-
 ### 4.1.2 Dice Detection (`dice_cv`)
+
+<details>
+<summary><strong>Dice Detection Implementation</strong> (click to expand)</summary>
 
 The dice detection pipeline operates on the **rectified, top‑down board image** produced by the ArUco node. Its job is to detect dice reliably, estimate their orientation, and output usable 3D poses for the robot.
 
@@ -411,7 +427,6 @@ world
 
 ---
 
-
 #### Annotated Dice Detections
 
 The warped-board view includes:
@@ -424,7 +439,6 @@ The warped-board view includes:
 ![Dice detection on warped board](docs/media/dice_board_annotated.png)
 
 ---
-
 
 #### Processing overview
 
@@ -446,7 +460,6 @@ Each YOLO detection produces a bounding box, class index, and confidence.
 
 ---
 
-
 #### Rotation estimation (simple contour method)
 
 For each YOLO bounding box:
@@ -460,7 +473,6 @@ For each YOLO bounding box:
 If anything fails (no contour, noisy threshold), yaw defaults to **0°**, and the frame continues safely.
 
 A rotated bounding box is redrawn around the die for clarity.
-
 
 ---
 
@@ -498,7 +510,6 @@ This ensures the die is approached correctly.
 
 ---
 
-
 #### Publishing results
 
 ##### **World-frame**
@@ -509,7 +520,6 @@ The node fills a `DiceResult` message for each detection:
 - Corrected world-frame pose  
 
 All `DiceResult`s are packed into a `DiceResults` message and published.
-
 
 ---
 
@@ -532,7 +542,6 @@ These markers provide intuitive feedback in RViz.
 
 ---
 
-
 #### End-effector goal markers
 
 A world-frame `PoseStamped` is created for each die.  
@@ -541,7 +550,6 @@ A world-frame `PoseStamped` is created for each die.
 These markers appear on the topic:
 
 - `dice_ee_goal_markers`
-
 
 ---
 
@@ -564,10 +572,13 @@ This makes it easy to verify that:
 - Rotations look stable  
 - World-frame poses are reasonable before being passed to the `brain`
 
+</details>
+
 ---
 
-
 ### 4.1.3 Cup Detection (`cup_cv`)
+<details>
+<summary><strong>Cup Detection Implementation</strong> (click to expand)</summary>
 
 The cup detection pipeline works on the same rectified board image as the dice node and produces a single, stable pick pose for the cup. It combines a simple colour mask with geometry-based reasoning to estimate both the base position of the cup and the direction the gripper should approach from.
 
@@ -708,9 +719,13 @@ To visualise the end-effector goal, the node also:
 
 Together, the colour mask, geometric reconstruction and RViz markers make it easy to see how the system is interpreting the cup’s position and orientation before the UR5e commits to a pick-up motion.
 
+</details>
+
 ---
 
 ### 4.1.4 Player and Bet Detection (`player_node`)
+<details>
+<summary><strong>Player and Bet Detection Implementation</strong> (click to expand)</summary>
 
 The player detection pipeline is responsible for mapping physical players and their chips on the board to a structured `Players` message that the `brain` and dashboard can use. It runs on the warped board image, reuses the same coordinate system and divides the table into three logical zones, one per player.
 
@@ -840,6 +855,9 @@ This view makes it easy to verify that:
 - Chips fall inside the expected zones.
 - The mapping from physical layout → warped image → board frame is behaving as intended before the `brain` uses these detections to drive game logic.
 
+</details>
+
+---
 
 ## 4.2 Custom End-Effector
 
@@ -890,7 +908,7 @@ RViz provides a robotics-focused view of the system, including TF frames, 3D obj
 | UR5e Robot Model | MoveIt RViz plugin | Displays real-time robot state (gray), target state (orange), and planned trajectory (purple). | Standard MoveIt functionality. |
 | Planned Path | MoveIt → /move_group/display_planned_path | Visual path preview for trajectory execution. | Confirms reachability & collision-free paths. |
 
-For more infomation about how the marker messages are constructed, see section 4.1.
+*For more infomation about how the marker messages are constructed and published, see section 4.1.*
 
 ---
 
@@ -936,7 +954,7 @@ When no round is running, the dashboard shows the **play screen**:
 
 Layout:
 
-- A large green playboard which shows the current game state and prompts players to place bets. When bets are placed, the button changes to showing `Start Game`, allowing for the main closed loop operation to begin.  
+- A large playboard which shows the current game state and prompts players to place bets. When bets are placed, the button changes to showing `Start Game`, allowing for the main closed loop operation to begin.  
 - A row of player cards underneath, one per detected player from `/players`. Data for the player cards is fetched from the backend using the `player_id`.
 
 Each player card displays:
