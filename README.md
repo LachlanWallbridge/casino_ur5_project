@@ -44,20 +44,15 @@ This project demonstrates the automation of the a game called "Odds & Evens Dice
 
 At startup the game frontend is launched. The perception pipeline start by identifying the 4 ArUco that mark the corners of the game board. From this, it begins identfying the dice, cup, and player states. The board state should begin as seen below: with the dice in the cup and placed in the designated play area - which is the area covered in green felt - and the player sections should be clear of aruco markers and chips.
 
-> TODO: Image of board state 1
+![System Overview](docs/media/aruco_raw.png)
 
-The players should now place their ArUco marker ID's in a designated player section. The systems perception will automatically detect the player markers and populate the front end with player information.
+The players should now place their ArUco marker ID's in a designated player section. The systems perception will automatically detect the player markers and populate the front end with player information.With our players in, they may being placing bets. Once again the systems perception will automatiaclly detect the bets and populate the front end based on the bets placed on the board. Once bets are placed, our players make their prediction on the dice outcome through the front end. Once all players have made a prediction the start button will become availible. 
 
-> TODO: Image of front end state 1
-
-With our players in, they may being placing bets. Once again the systems perception will automatiaclly detect the bets and populate the fround end based on the bets placed on the board. Once bets are placed, our players make their prediction on the dice outcome through the front end. Once all players have made a prediction the start button will become availible. 
-
-> TODO: Image of front end state 2
+![System Overview](docs/media/front_end.png)
 
 After the start button is pressed, the robot will move to a designated 1st position and open the gripper. It will then move to pick up the cup based on the perception pipelines prediction of cup position and orientation. The robot will pick up the dice cup, lift it slightly make a roll and the place the cup back down in it's starting position. The robot will now return back to the designated 1st position. Now the yolo model works to identify the dice outcome which is then reported to the front end, confirming the results of the round and allowing dealers to handle payout. 
 
-> TODO: Image of front end state 3
-> Image of board state 2
+![System Overview](docs/media/game_state_3.jpg)
 
 The robot now moves to each die, picking it up and placing it back in the cup, before returning to the home position.  
 
@@ -770,7 +765,17 @@ Include:
 - Assembly or exploded-view drawing (link to drawings/STEP files if relevant).
 - Control overview: how the end-effector is actuated (e.g. via Teensy, IO, vacuum).
 - ROS integration: topics / services / actions used to control it.
+  
 
+The end effector is a linear gripper designed to reliably manipulate both the dice and the cup. The gripper is actuated using a rack-and-pinion mechanism, with a central pinion gear driving two opposing, gear-profiled gripper fingers that function as linear racks. This configuration ensures symmetric finger motion and consistent gripping force.
+
+A key advantage of the linear gripper design is its passive self-centring behaviour. As long as the object lies between the open fingers, the closing motion naturally guides it toward the centre of the gripper. This makes the system highly tolerant to positional misalignment between the gripper and the object, improving robustness, repeatability, and overall reliability during operation.
+
+Actuation is controlled using a **Teensy 4.1 microcontroller**, which drives a **DSS-PO5 Standard Servo** to position the gripper with precise and repeatable motion. 
+
+The Brain node commands the gripper via a dedicated gripper server using a service-based interface. Each service call specifies the desired target position for the servo motor.
+
+Upon receiving a request, the gripper server transmits the position command to the Teensy 4.1 microcontroller over a serial connection. The Teensy then generates the appropriate PWM signal to drive the servo to the requested position. Once actuated, the servo provides sufficient holding torque to securely grasp and lift both the dice and the cup during operation.
 ## 4.3 System Visualisation
 
 > TODO: Explain how your system is visualised.
@@ -801,6 +806,37 @@ Discuss:
 > TODO: Provide clear, step-by-step instructions to reproduce your development environment and run the system on a fresh machine.
 
 ## 5.1 Requirements
+
+The system has a number of requirements which must first be met before setup can begin. 
+
+### Ros2
+Fistly, the system relies on Ros2 Humble Hawksbill. [HERE](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html) is the guide for installing Ros2 Huble Hawksbill via ubuntu debain packages.
+
+### Moveit
+All path planning and executing with the Ur5e is done via Moveit. An installation guide can be found HERE
+
+### RealSense
+To make use of the RealSense camera we require the appropraite ros wrapper. Follow the installation guide at in the ReadME HERE
+
+### NodeJS and NPM
+The front-end requires NodeJS to operate and npm to handle dependencies. Installing NodeJS should install npm with it. On Debian-based systems, you can use the NodeSource repository or Node Version Manager (NVM). For the NodeSource method, first update your system and install dependencies:
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl
+```
+Then, use the setup script for Node.js 18:
+```bash
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+### Front-End
+** TO BE DONE AFTER CLONING INTO REPO **
+```bash
+cd frontend
+npm install
+```
+
+### Additional Back-End
 
 ```bash
 pip install -r requirements.txt
