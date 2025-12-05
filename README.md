@@ -895,8 +895,7 @@ RViz provides a robotics-focused view of the system, including TF frames, 3D obj
 ---
 
 #### Visualising End Effector (URDF)
-> TODO: Describe how to end effector is visualised in rviz. Include images and gifs of the joints moving. Brief overview on how it was done
-
+The end effector is visualised using a URDF and xacro file. An STL of the full assembly is imported as a mesh into the URDF to provide the geometries for visualisation and collision detection. In a xacro file, the gripper is attacthed to a urdf model at the joint 'tool0' and the oreintated to line-up correctly with the real world attatchment of the end effector. 
 
 ---
 
@@ -1370,6 +1369,9 @@ Because the camera viewed both the top and part of the side wall, the detected b
 Because the YOLO model requires a high-resolution input and the system has limited processing power, the RealSense was configured to 1080p at 6 fps. The aruco_cv node then applied frame throttling, processing only every `n-th` frame. This prevented downstream CV nodes (YOLO, player detection) from overloading the system, which previously caused TF buffer timeouts and dropped detections.
 
 Smart image cropping was also introduced so that CV algorithms operated only on relevant board regions. This reduced computation and improved YOLO confidence, as the dice occupied a larger portion of the cropped image and was closer to the conditions of the training dataset.
+
+### Integrating Current Sensing into End-Effector
+Currently the end effector works througb pure position control. The brain will reques the sevo to move to a specified position which causes the gripping action. While this open loop method has proved reliable, the integration of a current sensor into the end effector would provide multiple advantages. Rather than moving to a desired position, the gripper could close until  a current threshold is met. Once this threshold is reached the gripper torque would have increased which indicates an object has been grabbed. This would provide the gripper feedbacl about wether an object has been grabbed, allowing for reattempts for grabbing missed object and providing the system more understanding of it's actions. 
 
 ## 8.2 Potential Improvements
 
