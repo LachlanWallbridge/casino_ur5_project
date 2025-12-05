@@ -406,9 +406,9 @@ This visualisation confirms stable detection and consistent alignment.
 
 Other CV modules rely on the board frame:
 
-- **dice_cv** — converts dice detections into world-frame picking poses
-- **cup_cv** — locates the cup base and orientation
-- **player_cv** — assigns chips to the correct betting zones
+- **dice_cv**: converts dice detections into world-frame picking poses
+- **cup_cv**: locates the cup base and orientation
+- **player_cv**: assigns chips to the correct betting zones
 
 If detection fails, the transform is not updated, preventing jumps in downstream components.
 
@@ -440,24 +440,15 @@ The dice detection pipeline operates on the **rectified, top‑down board image*
 #### Inputs and outputs
 
 ##### **Subscribed**
-- `board/warped_image` (Image) — top‑down view of the board.
+- `board/warped_image` (Image): top‑down view of the board.
 
 ##### **Published**
-- `dice_results` (DiceResults) — world-frame poses of dice.
-- `dice_markers` (MarkerArray) — board-frame RViz cubes and labels.
-- `dice_ee_goal_markers` (MarkerArray) — end-effector goal visualisations.
+- `dice_results` (DiceResults): world-frame poses of dice.
+- `dice_markers` (MarkerArray): board-frame RViz cubes and labels.
+- `dice_ee_goal_markers` (MarkerArray): end-effector goal visualisations.
 
 ##### **Model**
 - Loads a custom YOLO model (`best.pt`) from `perception_cv/dice_cv/weights`.
-
-##### **TF**
-Uses the existing TF chain:
-
-```
-world
-└── camera_frame
-    └── board_frame
-```
 
 ---
 
@@ -467,7 +458,7 @@ The warped-board view includes:
 
 - Rotated bounding boxes  
 - Dice value + confidence  
-- Orientation arrow  
+- Orientation arrow (optional)
 - Crop region rectangle  
 
 ![Dice detection on warped board](docs/media/dice_board_annotated.png)
@@ -510,40 +501,6 @@ A rotated bounding box is redrawn around the die for clarity.
 
 ---
 
-#### Converting pixels → board and world
-
-##### **Board-frame coordinates**
-```
-pixel_to_board_coords(
-    x_px = centre_x,
-    y_px = centre_y,
-    img_w, img_h,
-    z_offset = DICE_HALF_HEIGHT (0.03m)
-)
-```
-
-Returns `(x_m, y_m, z_m)` in **metres** inside the `board_frame`.
-
-##### **World-frame pose**
-```
-pixel_to_world_pose(..., yaw_rad, tf_buffer)
-```
-
-- Uses camera intrinsics + `world → camera_frame` TF.  
-- Outputs a full `PoseStamped` in the `world` frame.  
-- If TF lookup fails, that dice detection is skipped.
-
-##### **Yaw correction for MoveIt**
-The robot’s tool convention requires a 180° flip around the Y-axis:
-
-```
-pose.orientation = orientation ⨉ quaternion_from_euler(0, π, 0)
-```
-
-This ensures the die is approached correctly.
-
----
-
 #### Publishing results
 
 ##### **World-frame**
@@ -573,17 +530,6 @@ This function:
   - A **white text label** showing the dice value just above it
 
 These markers provide intuitive feedback in RViz.
-
----
-
-#### End-effector goal markers
-
-A world-frame `PoseStamped` is created for each die.  
-`visualise_pose_in_rviz()` publishes small axis markers to show where the robot will approach from.
-
-These markers appear on the topic:
-
-- `dice_ee_goal_markers`
 
 ---
 
@@ -687,10 +633,10 @@ The centroid of this reconstructed base rectangle is used as the cup base positi
 
 For each frame, the node draws several overlays on the full warped board image:
 
-- **Green box** – the original rotated bounding box around the detected yellow blob.
-- **Yellow box** – the reconstructed base rectangle that enforces the correct cup footprint.
-- **Red dot** – the centroid of the reconstructed base, interpreted as the cup base.
-- **Blue arrow** – the approach direction for the gripper, derived from the estimated yaw.
+- **Green box** The original rotated bounding box around the detected yellow blob.
+- **Yellow box** The reconstructed base rectangle that enforces the correct cup footprint.
+- **Red dot**: The centroid of the reconstructed base, interpreted as the cup base.
+- **Blue arrow**: The approach direction for the gripper, derived from the estimated yaw.
 
 All of these are drawn in full-image coordinates (after accounting for the crop offset), giving an intuitive view of what the node thinks the cup pose and pickup direction are.
 
@@ -721,7 +667,7 @@ The main world-frame output is a `CupResult` message:
 
 Before publishing, the node adjusts this pose to better match the end-effector frame and tool geometry:
 
-- A local offset of about 14 cm along the cup’s local X-axis is applied so that the wrist target sits behind the cup rather than at its centre.
+- A local offset of 13 cm along the cup’s local X-axis is applied so that the wrist target sits behind the cup rather than at its centre.
 - An additional fixed rotation is applied to align the gripper with the cup axis using a pre-defined Euler rotation (`π/2, π, π/2`).
 
 These adjustments mean that downstream components (the `brain` and motion planner) can treat `cup_result.pose` as a ready-to-use end-effector goal.
@@ -749,7 +695,6 @@ To visualise the end-effector goal, the node also:
 
 - An OpenCV window named `Cup Detection` shows the main warped-board view with all annotations (bounding boxes, centroid, and approach arrow).
 - A separate window (`Cup Mask`) shows the current yellow mask, which is useful for tuning the HSV thresholds.
-- A small timer (`gui_timer`) keeps the GUI responsive by regularly calling `cv2.waitKey(1)` even when new images are not arriving.
 
 Together, the colour mask, geometric reconstruction and RViz markers make it easy to see how the system is interpreting the cup’s position and orientation before the UR5e commits to a pick-up motion.
 
