@@ -1174,11 +1174,11 @@ Include:
 
 # 6. Running the System
 
-## 6.1 One-Command Launch
+## 6.1 One-Command Launch to initialize the game
 
-> TODO: Provide the single command that launches the full system (no manual sequencing).
+<!-- > TODO: Provide the single command that launches the full system (no manual sequencing). -->
 
-Example placeholder:
+<!-- Example placeholder: -->
 
 ```bash
 # Make sure that you are in the correct workspace
@@ -1190,7 +1190,7 @@ Briefly describe what this launch file does (starts perception, `brain`, MoveIt,
 
 ### 6.2 Example Commands
 
-> TODO: List commonly used commands for development, debugging or partial launches.
+<!-- > TODO: List commonly used commands for development, debugging or partial launches. -->
 
 Examples:
 
@@ -1375,11 +1375,11 @@ The Brain node suffered early from callback deadlocks and unsafe motion sequenci
   - More expressive visualisation or user controls.
   - Hardware improvements (faster gripper, safer interactions).
 
-### Improvements on motions and close-loop controls
+### Improvements on Path Planning and Execution Error Handling
 One improvement is to ensure the robot always starts in a known, safe home position when the system launches. Establishing a consistent initial pose would remove uncertainty about the robot’s configuration, simplify motion planning, and reduce the chance of unreachable states. Additionally, both the Brain node and the moveit_path_planning_server could be enhanced with automatic recovery behaviours. When a motion error occurs, the system could command the robot to safely return to the home position and display a clear error message on the frontend, improving usability and preventing unsafe states.
 
-Another area for future development is the pick-and-place control loop. The current system is not fully real-time, as target poses for dice and cup detection are only refreshed after each discrete motion completes. A more advanced approach would introduce continuous tracking—updating target poses in real time and running path planning continuously as the object moves. Implementing such a closed-loop motion pipeline would allow smoother, more responsive manipulation, enabling the robot to follow moving targets dynamically rather than executing step-based motions.
-
+### Improvements on Close-Loop system
+Another area for future development is the pick-and-place control loop. The current system is not fully real-time, as target poses for dice and cup detection are only refreshed after each discrete motion completes. A more advanced approach would introduce continuous tracking—updating target poses in real time and running path planning continuously as the object moves. This could be further enhanced by mounting an additional RGB-D camera on the end effector alongside the gripper, allowing the vision system to observe the dice and cup from a close, unobstructed perspective. With this setup, detections would no longer be interrupted by the robot blocking the main camera’s line of sight, and the arm could adapt to changes in target position immediately. Implementing such a closed-loop perception and motion pipeline would enable smoother, more responsive manipulation, allowing the robot to follow moving targets dynamically rather than relying on step-based motions.
 
 ## 8.3 Project Novelty
 
