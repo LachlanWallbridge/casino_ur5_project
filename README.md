@@ -1423,15 +1423,16 @@ This project builds on several open-source tools, documentation sources and prio
   Provided baseline examples for YOLO-based dice detection and dataset structure:  
   https://github.com/N3VERS4YDIE/dice-recognition
 
-- **Open-Source Dice Datasets**  
+- **Roboflow Open-Source Dice Datasets**  
   Incorporated for training and validating the dice detection network.
+  https://universe.roboflow.com/
 
 ## 11.2 Acknowledgements
 
 We would like to acknowledge the people who contributed guidance, support and technical insights throughout the development of this project:
 
 - **Alex Cronin** — For his support throughout the term and for providing valuable feedback on key architectural decisions.
-- **David Nie** — For his public repository and the many guides and resources he produced throughout the term, which informed our project structure and MoveIt setup.
+- **David Nie** — For his ur10 repository and the many guides and resources he produced throughout the term, which informed our project structure and MoveIt setup.
 - **Abdul Shahzeb (z5311131)** For his assistance in debugging our Cartesian path planning issues. (Group M14-3)
 
 We are grateful for their contributions, which helped improve both the design and reliability of our system.
