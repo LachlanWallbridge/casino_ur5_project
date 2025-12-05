@@ -1356,6 +1356,9 @@ Another significant issue arose in the moveit_path_planner package, where the Ca
 ### Callback Deadlocks and Concurrency Problems in the Brain Node
 The Brain node suffered early from callback deadlocks and unsafe motion sequencing because multiple components—subscriptions, services, the ActionClient, and the round thread—were all competing on a single executor thread. Callbacks frequently blocked each other, preventing perception and action feedback from running and causing the system to freeze mid-round. This was resolved by using a ReentrantCallbackGroup and a MultiThreadedExecutor, allowing callbacks to run concurrently, and by introducing threading.Event() to synchronise robot motions. These changes ensured that actions could execute safely in sequence while perception and other callbacks continued to run in parallel, eliminating deadlocks and making motion execution deterministic and reliable.
 
+### Cup Centroid Detection Issues → Solved by Forced Cup Bounding Box Dimensions
+Because the camera viewed both the top and part of the side wall, the detected blob was biased toward the visible side of the cup. This shifted the centroid by over 1 cm at extremes, causing off-centre grasps and collisions. By enforcing the cup’s known base dimensions and aspect ratio (Section 4.1.3), the bounding box was corrected, giving a stable and accurate base centroid for reliable grasping.
+
 ## 8.2 Potential Improvements
 
 > TODO: Ideas for “Version 2.0”:
@@ -1369,6 +1372,9 @@ One improvement is to ensure the robot always starts in a known, safe home posit
 
 ### Improvements on Close-Loop system
 Another area for future development is the pick-and-place control loop. The current system is not fully real-time, as target poses for dice and cup detection are only refreshed after each discrete motion completes. A more advanced approach would introduce continuous tracking—updating target poses in real time and running path planning continuously as the object moves. This could be further enhanced by mounting an additional RGB-D camera on the end effector alongside the gripper, allowing the vision system to observe the dice and cup from a close, unobstructed perspective. With this setup, detections would no longer be interrupted by the robot blocking the main camera’s line of sight, and the arm could adapt to changes in target position immediately. Implementing such a closed-loop perception and motion pipeline would enable smoother, more responsive manipulation, allowing the robot to follow moving targets dynamically rather than relying on step-based motions.
+
+### Improvements to CV
+Stronger colour masking for chip detection, and retraining the YOLO model on our own board-specific images to improve robustness and detection accuracy.
 
 ## 8.3 Project Novelty
 
