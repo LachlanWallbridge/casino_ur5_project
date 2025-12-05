@@ -1073,31 +1073,92 @@ Follow these steps to safely power on and initialise the UR5e robot using the te
 
 1. Turn on the **main power switch** located on the UR5e control box.
 2. The **teach pendant will boot automatically** and display the UR interface.
-3. Ensure the **Emergency Stop (E-Stop)** button on:
-   - The teach pendant, and
-   - The control box
-   are both **released** (twist clockwise to release if engaged).
-4. If either E-Stop is pressed, the robot will not power on.
+
+<p align="center">
+  <img src="docs/media/booting.jpg" width="50%">
+</p>
+
+3. Ensure the **Emergency Stop (E-Stop)** button on the teach pendant and the control box
+   are both **released** (twist clockwise to release if engaged). If either E-Stop is pressed, the robot will not power on.
 5. On the teach pendant, the startup screen will show the robot as **Powered Off**.
 6. Press the **Power On** button.
 7. Wait for the system to initialise.
 8. Once powered, press **Unlock** on the teach pendant.
 9. The robot joints will now be enabled but not yet moving.
+<p align="center">
+  <img src="docs/media/ready.jpg" width="50%">
+</p>
 10. Navigate to the **Program** tab.
-11. Select and load the `ros.urdp`
+11. Select and load the `ros.urdf` program.
+
+<br>
 
 **Safety Notes**
 - Always ensure the **workspace is clear** before enabling motion.
 - Never stand within the robot’s **maximum reach at startup**.
 - Keep one hand near the **E-Stop** during initial testing.
 
-  
-### Camera
-mounting position, USB/Ethernet connection, intrinsic/extrinsic calibration files.
+---
 
-### End-effector
 
-### Teensy
+### UR5e Connection
+
+1. Connect the **UR5e Ethernet cable (orange)** to your computer.
+2. Open **Wired Network Settings → IPv4**.
+3. Change **IPv4 Method** to **Manual**.
+4. Enter the following values:
+   - Address: `192.168.0.77`
+   - Netmask: `255.255.255.0`
+5. Click **Apply**.
+
+<p align="center">
+  <img src="docs/media/ur5e_ipv4_setup.jpg" width="50%">
+</p>
+
+---
+
+### Camera Setup
+
+1. Mount the RealSense camera onto its bracket using a screwdriver, with the **USB connector facing toward the robot**.
+2. Slide the camera mount onto the top brace of the frame.
+3. Plug the RealSense USB cable into a **USB 3.1 port** on the computer.
+
+<p align="center">
+  <img src="docs/media/camera_mount.jpg" width="50%">
+</p>
+
+---
+
+### End-Effector Installation
+
+1. Remove the **tripod adapter** from the UR5e wrist.
+2. Slide the custom end-effector into the mount, ensuring the **motor cables face the connector ports**.
+3. Connect the end-effector wiring:
+   - Power → UR5e auxiliary power
+   - Motor signal → **Analog Input Slot 2**
+4. Open the Teensy serial monitor and send an angle command of `180` to **fully open** the gripper and align the pads with the gear teeth.
+5. Send an angle of `1` to **close** the gripper and verify correct operation.
+
+<p align="center">
+  <img src="docs/media/end_effector_wiring.jpg" width="50%">
+</p>
+
+---
+
+### Teensy Connection
+
+1. Connect the Teensy’s analog output cable to the **in-table control box**.
+2. Ensure wiring is correct:
+   - Teensy pin 9 → Control Slot 2
+   - Teensy ground → Control Slot 1
+3. Connect the Teensy to your computer via USB for power and serial communication.
+
+<p align="center">
+  <img src="docs/media/teensy_wiring.jpg" width="50%">
+</p>
+
+
+
 
 ## 5.4 Configuration and Calibration
 
