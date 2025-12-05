@@ -57,7 +57,7 @@ After the start button is pressed, the robot will move to a designated 1st posit
 The robot now moves to each die, picking it up and placing it back in the cup, before returning to the home position.  
 
 ## 2.3 Demo Video
-[![Watch the Demo](https://img.icons8.com/fluency/240/youtube-play.png)](https://drive.google.com/file/d/1irMjWqZdTdLUCx5GPTzw7JCPZO1h40ZF/view?usp=drive_link)
+[![Watch the Demo](docs/media/thumbnail.png)](https://drive.google.com/file/d/1irMjWqZdTdLUCx5GPTzw7JCPZO1h40ZF/view?usp=drive_link)
 
 above is a sped up video showing the system performing 1 round of gameplay.  
 
