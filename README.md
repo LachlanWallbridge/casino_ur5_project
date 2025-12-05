@@ -1348,10 +1348,10 @@ The front end provides clear feedback about the state of the game. This includes
 
 Users have provided positive feedback on the front end and the game experience. Users have been able to play after a quick and minimal onboarding. These indicate achievement of UX1 and UX4.
 
-## Pesentation Video
+## Demonstration Video
 [![Watch the Demo](https://img.youtube.com/vi/GC9QNMmfosw/hqdefault.jpg)](https://youtu.be/GC9QNMmfosw)
 
-The demonstration video provides an end-to-end overview of the system in operation, including autonomous dice rolling, detection, grasping, cup placement, and the full gameplay loop through the front-end interface. The run shown reflects typical system behaviour: stable perception, reliable grasp execution, and consistent performance across varying lighting conditions and dice landing positions. It illustrates the real-time responsiveness and robustness discussed in the Results section.
+The demonstration video provides an end-to-end overview of the system in operation, including autonomous dice rolling, detection, grasping, cup placement, and the full gameplay loop through the front-end interface. The run shown reflects typical system behaviour: stable perception, reliable grasp execution, and consistent performance across varying lighting conditions and dice landing positions. It illustrates the real-time responsiveness and robustness discussed in the Results section. A secondary runthrough video can be accessed from Section 2.3.
 
 ---
 
