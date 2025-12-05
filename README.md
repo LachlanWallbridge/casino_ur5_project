@@ -1339,9 +1339,9 @@ Include:
 
 | Name            | zID       | Primary Roles                              |
 |-----------------|-----------|--------------------------------------------|
-| Lachlan Wallbridge       | z5359327 | Vision, Web dashboard, visualisation       |
+| Lachlan Wallbridge       | z5359327 | Vision, Closed Loop, Web dashboard, CV visualisation       |
 | Kanokpop Juemjutitam      | z5382229 | Motion planning, MoveIt integration        |
-| Samuel Maron       | z5351169 | Hardware, end-effector, UR5e integration, visualisation   |
+| Samuel Maron       | z5351169 | Hardware, end-effector, UR5e integration, urdf visualisation   |
 
 
 ---
@@ -1401,18 +1401,26 @@ The repository combines a ROS2-based robotics stack, computer vision pipelines, 
 
 ## 11.1 References
 
-> TODO: Credit any external libraries, tutorials or prior codebases.
+This project builds on several open-source tools, documentation sources and prior codebases:
 
-Examples:
+- **ROS 2 Documentation**  
+  Used extensively for understanding custom message, service and action creation, as well as implementing multithreading, callback groups and node concurrency.  
+  https://docs.ros.org/
 
-- ROS2 and MoveIt2 documentation.
-- YOLO / Ultralytics documentation and model zoo.
-- Tutorials, blog posts or example repos you adapted.
+- **MoveIt 2 Documentation**  
+  Referenced for UR5e motion planning, particularly Cartesian path examples and planning pipeline configuration.  
+  https://moveit.picknik.ai/
 
-(Provide links or citations as appropriate.)
+- **Ultralytics YOLO**  
+  Used for training and running the dice detection model.  
+  https://docs.ultralytics.com/
 
-https://github.com/N3VERS4YDIE/dice-recognition
+- **Dice Recognition Reference Repository**  
+  Provided baseline examples for YOLO-based dice detection and dataset structure:  
+  https://github.com/N3VERS4YDIE/dice-recognition
 
+- **Open-Source Dice Datasets**  
+  Incorporated for training and validating the dice detection network.
 
 ## 11.2 Acknowledgements
 
