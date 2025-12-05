@@ -895,7 +895,7 @@ RViz provides a robotics-focused view of the system, including TF frames, 3D obj
 ---
 
 #### Visualising End Effector (URDF)
-The end effector is visualised using a URDF and xacro file. An STL of the full assembly is imported as a mesh into the URDF to provide the geometries for visualisation and collision detection. In a xacro file, the gripper is attacthed to a urdf model at the joint 'tool0' and the oreintated to line-up correctly with the real world attatchment of the end effector. 
+The end effector is visualised using a URDF and xacro file. An STL of the full assembly is imported as a mesh into the URDF to provide the geometries for visualisation and collision detection. In a xacro file, the gripper is attatched to a urdf model at the joint 'tool0' and the oreintated to line-up correctly with the real world attatchment of the end effector. 
 
 ---
 
