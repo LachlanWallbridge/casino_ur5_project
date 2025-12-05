@@ -1160,13 +1160,28 @@ Follow these steps to safely power on and initialise the UR5e robot using the te
 
 ## 5.4 Configuration and Calibration
 
-> TODO: Document configuration files and calibration procedures.
+The system relies on a small set of configuration parameters to ensure that perception outputs align correctly with the robot workspace.
 
-Include:
+### Camera-to-World Offset
+A fixed transform specifies the RealSense camera’s position relative to the UR5e base frame. This allows all detected objects to be placed correctly in world coordinates. This can be modified in `perception_cv`
 
-- Paths to configuration YAML files (e.g. MoveIt, controller configs, camera parameters).
-- Where hand–eye calibration is stored and how it is loaded (even if assumed to be present).
-- Any tunable parameters for perception thresholds, planning margins, etc.
+### Tool Offset
+The custom end‑effector introduces a constant wrist‑to‑tool tip offset:
+```
+TOOL_OFFSET = 0.13  # metres
+```
+This offset is applied whenever computing grasp or approach poses. This may need to be tuned to allow closer cup pickup.
+
+### Cartesian Speed Scaling
+Cartesian motions can be slowed for testing or safety by tuning the MoveIt `scale_speed` parameter. Lower values reduce the end‑effector’s linear velocity during execution.
+
+### Joint Speed Scaling
+Joint-space trajectories can be slowed for safety or testing by adjusting the MoveIt velocity and acceleration scaling factors:
+```
+move_group_->setMaxVelocityScalingFactor(0.20);
+move_group_->setMaxAccelerationScalingFactor(0.20);
+```
+Lower values reduce the maximum joint speeds and accelerations during motion execution.
 
 ---
 
@@ -1180,12 +1195,9 @@ cd launch
 ./launch_all_urdf.sh
 ```
 
-> TODO: Briefly describe what this launch file does (starts perception, `brain`, MoveIt, visualisation, dashboard, etc.).
+Running this command will result in behvaiour explored in Section 6.3.
 
 ### 6.2 Example Commands
-
-<!-- > TODO: List commonly used commands for development, debugging or partial launches. -->
-
 Examples:
 
 ```bash
@@ -1228,8 +1240,6 @@ cd $WS/backend && uvicorn api:app --reload --port 8000
 # Launch only frontend
 cd $WS/frontend && npm start
 ```
-
-> TODO: (Replace with your actual package / launch file names.)
 
 ## 6.3 Expected Behaviour
 
@@ -1344,9 +1354,6 @@ Users have provided positive feedback on the front end and the game experience. 
 
 ## 8.1 Challenges and Solutions
 
-> TODO: Major technical challenges (e.g. calibration drift, latency, path planning collisions) and how you addressed them.
-> Design trade-offs you made (e.g. algorithm choice vs. runtime, robustness vs. complexity).
-
 ### MoveIt (OMPL) Path Planning Issues → Solved by Using a Cartesian Path Planner
 A major engineering challenge was understanding and controlling MoveIt’s OMPL-based global planner. The planner often produced unpredictable and inefficient trajectories, causing the robot to perform unnecessary spins, large detours, or motions that did not align with the intended task sequence. Debugging this behaviour was particularly difficult because MoveIt does not expose detailed logs or internal sampling information, making it nearly impossible to interpret why a specific trajectory was chosen. This unpredictability made precise manipulation tasks—such as picking dice or flipping the cup—unreliable. The issue was fully resolved by replacing OMPL-based planning with a custom Cartesian path planner, which provides deterministic, easily constrained, and much more predictable motion. Cartesian paths ensured that robot joints moved smoothly and logically, making trajectory generation simple, fast, and optimised for the task.
 
@@ -1360,12 +1367,6 @@ The Brain node suffered early from callback deadlocks and unsafe motion sequenci
 Because the camera viewed both the top and part of the side wall, the detected blob was biased toward the visible side of the cup. This shifted the centroid by over 1 cm at extremes, causing off-centre grasps and collisions. By enforcing the cup’s known base dimensions and aspect ratio (Section 4.1.3), the bounding box was corrected, giving a stable and accurate base centroid for reliable grasping.
 
 ## 8.2 Potential Improvements
-
-> TODO: Ideas for “Version 2.0”:
-  - More advanced game logic or betting options.
-  - Improved perception (multi-view, better models, tracking).
-  - More expressive visualisation or user controls.
-  - Hardware improvements (faster gripper, safer interactions).
 
 ### Improvements on Path Planning and Execution Error Handling
 One improvement is to ensure the robot always starts in a known, safe home position when the system launches. Establishing a consistent initial pose would remove uncertainty about the robot’s configuration, simplify motion planning, and reduce the chance of unreachable states. Additionally, both the Brain node and the moveit_path_planning_server could be enhanced with automatic recovery behaviours. When a motion error occurs, the system could command the robot to safely return to the home position and display a clear error message on the frontend, improving usability and preventing unsafe states.
