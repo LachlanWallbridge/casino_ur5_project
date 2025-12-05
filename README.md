@@ -1411,6 +1411,10 @@ This project builds on several open-source tools, documentation sources and prio
   Referenced for UR5e motion planning, particularly Cartesian path examples and planning pipeline configuration.  
   https://moveit.picknik.ai/
 
+- **UR10e Vision-Based Fruit Harvesting (David Nie)**  
+  Referenced for workspace structure, MoveIt server design, and URDF setup that informed our own architecture.  
+  https://github.com/DaviddNie/UR10e_vision_based_fruit_harvesting
+
 - **Ultralytics YOLO**  
   Used for training and running the dice detection model.  
   https://docs.ultralytics.com/
@@ -1424,10 +1428,10 @@ This project builds on several open-source tools, documentation sources and prio
 
 ## 11.2 Acknowledgements
 
-> TODO: Acknowledge people and organisations who helped.
+We would like to acknowledge the people who contributed guidance, support and technical insights throughout the development of this project:
 
-Examples:
+- **Alex Cronin** — For his support throughout the term and for providing valuable feedback on key architectural decisions.
+- **David Nie** — For his public repository and the many guides and resources he produced throughout the term, which informed our project structure and MoveIt setup.
+- **Abdul Shahzeb (z5311131)** For his assistance in debugging our Cartesian path planning issues. (Group M14-3)
 
-- Course staff and demonstrators for support and guidance.
-- Other student groups who shared insights or debugging help.
-- Any external organisations or tools (e.g. UR, Intel RealSense, etc.).
+We are grateful for their contributions, which helped improve both the design and reliability of our system.
