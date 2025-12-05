@@ -1158,8 +1158,6 @@ Follow these steps to safely power on and initialise the UR5e robot using the te
 </p>
 
 
-
-
 ## 5.4 Configuration and Calibration
 
 > TODO: Document configuration files and calibration procedures.
@@ -1176,17 +1174,13 @@ Include:
 
 ## 6.1 One-Command Launch to initialize the game
 
-<!-- > TODO: Provide the single command that launches the full system (no manual sequencing). -->
-
-<!-- Example placeholder: -->
-
 ```bash
 # Make sure that you are in the correct workspace
 cd launch
 ./launch_all_urdf.sh
 ```
 
-Briefly describe what this launch file does (starts perception, `brain`, MoveIt, visualisation, dashboard, etc.).
+> TODO: Briefly describe what this launch file does (starts perception, `brain`, MoveIt, visualisation, dashboard, etc.).
 
 ### 6.2 Example Commands
 
@@ -1235,13 +1229,11 @@ cd $WS/backend && uvicorn api:app --reload --port 8000
 cd $WS/frontend && npm start
 ```
 
-(Replace with your actual package / launch file names.)
+> TODO: (Replace with your actual package / launch file names.)
 
 ## 6.3 Expected Behaviour
 
-> TODO: Describe what a user should see when the system is running correctly.
-
-once the shell script is executed in the terminal
+Once the shell script is executed in the terminal
 ```bash
 # Make sure that you are in the correct workspace
 cd launch
@@ -1270,7 +1262,6 @@ There will be 8 new terminals appeared on the screen with the following titles:
 | **Dice Detection Image** | Live window displaying detected dice, bounding boxes, classification, and pose overlays. |
 | **Player Detection Image** | Visualises player identification, markers, and filtered chip detections. |
 | **Frontend UI** | Accessible at **http://localhost:3000/** — opens in a new browser tab for interactive game monitoring. |
-
 
 
 ## 6.4 Troubleshooting
@@ -1326,8 +1317,6 @@ If the gripper does not open or close:
 
 - Use the **VSCode Serial Monitor** to check that the selected serial port matches the one defined in the gripper server code.
 - Verify the **power supply** to the gripper controller and servo driver, ensuring stable voltage is being provided.
-
----
 
 ---
 
