@@ -991,9 +991,11 @@ This loop matches the physical behaviour of the system and gives a clear, casino
 
 ![Overall CloseLoop System](docs/diagrams/closeLoopOverall.png)
 
-In this project, the robot operates within a closed-loop perception–action framework. The environment is continuously monitored by the vision system, which detects and updates the poses of the board, cup, and dice. These real-time measurements are fed into the Brain node, where they influence decision-making and motion planning. The Brain then sends updated commands to the robot based on the latest available information, and the robot’s actions subsequently alter the environment, completing the feedback cycle. This loop repeats continuously, allowing the system to adapt its behaviour in response to changing conditions.
+In this project, the robot operates within a closed-loop perception–action cycle. The vision system continuously observes the board, cup and dice, updating their poses in real time. These measurements flow into the Brain node, which uses them to make decisions and plan motions. The robot then acts on these commands, changes the environment, and the updated scene is observed again. This loop repeats continuously, allowing the system to adapt to changing conditions.
 
-During normal operation, old pose estimates are constantly overwritten with fresh detections, ensuring that the robot always works with the most accurate state of the world. However, once the robot commits to a deterministic action—such as approaching and picking up a dice—the pose updates for that object are temporarily frozen. This prevents noisy or jittery mid-motion corrections that could destabilise the trajectory. The result is a semi–closed-loop hybrid control strategy: real-time feedback governs high-level decisions and target selection, while carefully controlled open-loop execution ensures precise and stable manipulation.
+During normal operation, old pose estimates are replaced with fresh detections so the robot always works with an accurate view of the world. Once the robot commits to a deterministic action, such as approaching or picking up a dice, pose updates for that object are briefly frozen. This avoids jittery mid-motion corrections that could destabilise the trajectory.
+
+The result is a semi–closed-loop control strategy: real-time feedback drives high-level decisions and target selection, while controlled open-loop execution provides precise and stable manipulation.
 
 ![Dice CloseLoop Pick-and-Place](docs/diagrams/DiceCloseLoop.png)
 
@@ -1271,7 +1273,7 @@ There will be 8 new terminals appeared on the screen with the following titles:
 | **Cup Mask Image** | Live OpenCV debugging window showing the cup segmentation mask. |
 | **Dice Detection Image** | Live window displaying detected dice, bounding boxes, classification, and pose overlays. |
 | **Player Detection Image** | Visualises player identification, markers, and filtered chip detections. |
-| **Frontend UI** | Accessible at **http://localhost:3000/** — opens in a new browser tab for interactive game monitoring. |
+| **Frontend UI** | Accessible at **http://localhost:3000/**. Opens in a new browser tab for interactive game monitoring. |
 
 
 ## 6.4 Troubleshooting
@@ -1332,7 +1334,7 @@ If the gripper does not open or close:
 
 # 7. Results and Demonstration
  
-The system successfully implements autonomous dice rolling, pickup, and return to cup — in line with requirement F1. Through the front-end we see the system evaluating bets and handling payout logic as required by F2. The front end displays dice results and confirms the parity for communication of the game outcome, fulfilling F3. The robot's joint states and end effector, as well as the position and orientation of the board, dice, and cup, are all visualised in RVIZ. This ensures we have met requirement F4. Player bets are made using chips, matching requirement F5.
+The system successfully implements autonomous dice rolling, pickup, and return to cup, in line with requirement F1. Through the front-end we see the system evaluating bets and handling payout logic as required by F2. The front end displays dice results and confirms the parity for communication of the game outcome, fulfilling F3. The robot's joint states and end effector, as well as the position and orientation of the board, dice, and cup, are all visualised in RVIZ. This ensures we have met requirement F4. Player bets are made using chips, matching requirement F5.
 
 Over a period of 8 games, 4 movement errors were seen. In each game cycle, 10 movements occur. Thus, 76/80 movements were seen to be successful. During these 8 games, dice pickup position was seen to be accurate to around 0.75 mm. These results indicate success in achieving requirement P5 — Pick-up accuracy and repeatability.
 
