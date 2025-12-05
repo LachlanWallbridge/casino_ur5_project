@@ -73,32 +73,17 @@ above is a sped up video showing the system performing 1 round of gameplay.
 
 ## 3.1 ROS2 Node Graph
 
-> TODO: Include a diagram of your ROS2 nodes, topics, services and actions (e.g. screenshot from `rqt_graph` or a custom schematic).
-
 ![ROS2 Node Graph](docs/diagrams/ros2_graph.png)
 
-Brief description:
-
-> TODO: One paragraph summarising the overall data flow (e.g. perception → brain → motion planning → execution → visualisation).
+The system follows a closed-loop pipeline that connects perception, decision-making and robot execution. The RealSense camera publishes RGB and depth data, which feed into the ArUco, dice, cup and player CV nodes. These perception nodes publish structured messages that the **brain** node uses to manage game logic, evaluate player bets and request robot actions. The brain communicates with the custom MoveIt Cartesian planning server to generate motion trajectories, which are executed by the UR5e controllers. Throughout execution, joint states, collisions and controller feedback flow back into MoveIt and the brain, closing the loop. Finally, all high-level state updates (players, dice results, round outcomes) are forwarded via rosbridge to the web dashboard for visualisation.
 
 ## 3.2 Package-Level Architecture
 
-> TODO: Provide a package-level diagram showing how ROS2 packages interact (topic connections, service interactions, shared utilities).
-
-
 ![Package Architecture](docs/diagrams/package_architecture.png)
 
-Describe, in a few bullet points:
-
-- `perception_cv`: TODO – vision and board/dice/cup/player detection.
-- `brain`: TODO – game logic, sequencing and coordination.
-- `moveit_path_planner`: TODO – motion planning and execution for UR5e.
-- `casino_dashboard` / web UI: TODO – external visualisation and user interaction.
-- Any other relevant packages.
 
 ## 3.3 Behaviour Tree / State Machine
 
-> TODO: Include a behaviour-tree or state-machine diagram describing the closed-loop behaviour across one full game round.
 ![Behaviour-tree of one full game close-loop](docs/diagrams/BehaviorTree.png)
 
 
@@ -1300,6 +1285,9 @@ Users have provided positive feedback on the front end and the game experience. 
 
 ## 8.1 Challenges and Solutions
 
+> TODO: Major technical challenges (e.g. calibration drift, latency, path planning collisions) and how you addressed them.
+> Design trade-offs you made (e.g. algorithm choice vs. runtime, robustness vs. complexity).
+
 ### MoveIt (OMPL) Path Planning Issues → Solved by Using a Cartesian Path Planner
 A major engineering challenge was understanding and controlling MoveIt’s OMPL-based global planner. The planner often produced unpredictable and inefficient trajectories, causing the robot to perform unnecessary spins, large detours, or motions that did not align with the intended task sequence. Debugging this behaviour was particularly difficult because MoveIt does not expose detailed logs or internal sampling information, making it nearly impossible to interpret why a specific trajectory was chosen. This unpredictability made precise manipulation tasks—such as picking dice or flipping the cup—unreliable. The issue was fully resolved by replacing OMPL-based planning with a custom Cartesian path planner, which provides deterministic, easily constrained, and much more predictable motion. Cartesian paths ensured that robot joints moved smoothly and logically, making trajectory generation simple, fast, and optimised for the task.
 
@@ -1311,24 +1299,22 @@ The Brain node suffered early from callback deadlocks and unsafe motion sequenci
 
 ## 8.2 Potential Improvements
 
+> TODO: Ideas for “Version 2.0”:
+  - More advanced game logic or betting options.
+  - Improved perception (multi-view, better models, tracking).
+  - More expressive visualisation or user controls.
+  - Hardware improvements (faster gripper, safer interactions).
+
 ### Improvements on motions and close-loop controls
 One improvement is to ensure the robot always starts in a known, safe home position when the system launches. Establishing a consistent initial pose would remove uncertainty about the robot’s configuration, simplify motion planning, and reduce the chance of unreachable states. Additionally, both the Brain node and the moveit_path_planning_server could be enhanced with automatic recovery behaviours. When a motion error occurs, the system could command the robot to safely return to the home position and display a clear error message on the frontend, improving usability and preventing unsafe states.
 
 Another area for future development is the pick-and-place control loop. The current system is not fully real-time, as target poses for dice and cup detection are only refreshed after each discrete motion completes. A more advanced approach would introduce continuous tracking—updating target poses in real time and running path planning continuously as the object moves. Implementing such a closed-loop motion pipeline would allow smoother, more responsive manipulation, enabling the robot to follow moving targets dynamically rather than executing step-based motions.
 
 
+## 8.3 Project Novelty
 
-> TODO: Reflect on engineering challenges and potential improvements.
-Include:
+> TODO: What makes your approach distinctive or effective compared to a naive baseline.
 
-- Major technical challenges (e.g. calibration drift, latency, path planning collisions) and how you addressed them.
-- Design trade-offs you made (e.g. algorithm choice vs. runtime, robustness vs. complexity).
-- Ideas for “Version 2.0”:
-  - More advanced game logic or betting options.
-  - Improved perception (multi-view, better models, tracking).
-  - More expressive visualisation or user controls.
-  - Hardware improvements (faster gripper, safer interactions).
-- What makes your approach distinctive or effective compared to a naive baseline.
 
 ---
 
