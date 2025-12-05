@@ -1113,11 +1113,11 @@ Include:
 
 # 6. Running the System
 
-## 6.1 One-Command Launch
+## 6.1 One-Command Launch to initialize the game
 
-> TODO: Provide the single command that launches the full system (no manual sequencing).
+<!-- > TODO: Provide the single command that launches the full system (no manual sequencing). -->
 
-Example placeholder:
+<!-- Example placeholder: -->
 
 ```bash
 # Make sure that you are in the correct workspace
@@ -1129,7 +1129,7 @@ Briefly describe what this launch file does (starts perception, `brain`, MoveIt,
 
 ### 6.2 Example Commands
 
-> TODO: List commonly used commands for development, debugging or partial launches.
+<!-- > TODO: List commonly used commands for development, debugging or partial launches. -->
 
 Examples:
 
