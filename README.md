@@ -1,4 +1,4 @@
-# MTRN4231: Dice-Playing Robot Casino System
+# Dice-Playing Robot Casino (Ur5e)
 
 # 1. Table of Contents
 
@@ -1059,8 +1059,8 @@ sudo apt install ros-humble-tf-transformations
 Navigate to your desired workspace directory and clone the repository:
 
 ```bash
-git clone https://github.com/LachlanWallbridge/MTRN4231_Project.git
-cd MTRN4231_Project
+git clone https://github.com/LachlanWallbridge/casino_ur5_project.git
+cd casino_ur5_project
 
 colcon build --symlink-install
 source install/setup.bash
@@ -1120,7 +1120,7 @@ Include:
 Example placeholder:
 
 ```bash
-# Make sure that you are in the MTRN4231_Project workspace
+# Make sure that you are in the correct workspace
 cd launch
 ./launch_all_urdf.sh
 ```
@@ -1182,7 +1182,7 @@ cd $WS/frontend && npm start
 
 once the shell script is executed in the terminal
 ```bash
-# Make sure that you are in the MTRN4231_Project workspace
+# Make sure that you are in the correct workspace
 cd launch
 ./launch_all_urdf.sh
 ```
