@@ -1371,31 +1371,48 @@ The Brain node suffered early from callback deadlocks and unsafe motion sequenci
 ### Cup Centroid Detection Issues → Solved by Forced Cup Bounding Box Dimensions
 Because the camera viewed both the top and part of the side wall, the detected blob was biased toward the visible side of the cup. This shifted the centroid by over 1 cm at extremes, causing off-centre grasps and collisions. By enforcing the cup’s known base dimensions and aspect ratio (Section 4.1.3), the bounding box was corrected, giving a stable and accurate base centroid for reliable grasping.
 
+### Computer Vision Performance Issues → Solved by throttling down stream CV nodes and smart area cropping
+Because the YOLO model requires a high-resolution input and the system has limited processing power, the RealSense was configured to 1080p at 6 fps. The aruco_cv node then applied frame throttling, processing only every `n-th` frame. This prevented downstream CV nodes (YOLO, player detection) from overloading the system, which previously caused TF buffer timeouts and dropped detections.
+
+Smart image cropping was also introduced so that CV algorithms operated only on relevant board regions. This reduced computation and improved YOLO confidence, as the dice occupied a larger portion of the cropped image and was closer to the conditions of the training dataset.
+
 ## 8.2 Potential Improvements
 
 ### Improvements on Path Planning and Execution Error Handling
 One improvement is to ensure the robot always starts in a known, safe home position when the system launches. Establishing a consistent initial pose would remove uncertainty about the robot’s configuration, simplify motion planning, and reduce the chance of unreachable states. Additionally, both the Brain node and the moveit_path_planning_server could be enhanced with automatic recovery behaviours. When a motion error occurs, the system could command the robot to safely return to the home position and display a clear error message on the frontend, improving usability and preventing unsafe states.
 
 ### Improvements on Close-Loop system
-Another area for future development is the pick-and-place control loop. The current system is not fully real-time, as target poses for dice and cup detection are only refreshed after each discrete motion completes. A more advanced approach would introduce continuous tracking—updating target poses in real time and running path planning continuously as the object moves. This could be further enhanced by mounting an additional RGB-D camera on the end effector alongside the gripper, allowing the vision system to observe the dice and cup from a close, unobstructed perspective. With this setup, detections would no longer be interrupted by the robot blocking the main camera’s line of sight, and the arm could adapt to changes in target position immediately. Implementing such a closed-loop perception and motion pipeline would enable smoother, more responsive manipulation, allowing the robot to follow moving targets dynamically rather than relying on step-based motions.
+Another area for future development is the pick-and-place control loop. The current system is not fully real time, because target poses for the dice and cup are only updated after each discrete motion finishes. A more advanced approach would use continuous tracking, where target poses are refreshed in real time and path planning runs continuously as the objects move.
+
+This could be strengthened further by adding an RGB-D camera to the end effector. With the camera mounted close to the gripper, the system would always have a clear view of the dice and cup, even when the robot blocks the main camera’s line of sight. This would allow the arm to adapt instantly to changes in target position.
+
+Implementing this type of closed-loop perception and motion pipeline would enable smoother, more responsive manipulation, allowing the robot to follow moving targets dynamically instead of relying on step-based motions.
 
 ### Improvements to CV
-Stronger colour masking for chip detection, and retraining the YOLO model on our own board-specific images to improve robustness and detection accuracy.
+Future work could strengthen chip detection by developing more robust colour-masking pipelines that better handle variations in lighting and table conditions. In addition, retraining the YOLO model on a dataset captured directly from our board setup would improve detection accuracy of the dice. 
+
+### Extending Manipulation and Game Logic
+The system could be expanded to handle chip manipulation, enabling automated bet placement or chip collection. This would liekly require a different end effector that can handle fine objects. Beyond parity betting, the framework could also be extended to support more complex games such as craps, which involve multi-dice state tracking, additional wagering rules and more advanced gameplay logic.
 
 ## 8.3 Project Novelty
 
-<!-- > TODO: What makes your approach distinctive or effective compared to a naive baseline. -->
 ### Computer Vision: YOLO Dice Detector & Novel Cup Localisation
-The perception system is distinctive because it combines a modern, high-accuracy YOLO detector for dice classification with a geometry-aware method for cup localisation that works reliably even without depth sensing. A naïve baseline would simply threshold colours or rely on RealSense depth to find objects—an approach highly sensitive to shadows, specular highlights, and depth noise, especially on cylindrical objects like the cup. Instead, our system uses a YOLO model trained specifically for dice on our board, providing robust detection, rotation estimation, and confidence tracking under varied lighting. For the cup, we avoid noisy depth altogether and instead reconstruct the cup base using a clever geometric projection: the colour mask identifies the visible rim, a rotated bounding box is fitted, and the known footprint dimensions of the cup are enforced to stabilise the centroid. This method corrects the large lateral biases normally caused by an angled camera view, producing a stable world-frame pose suitable for grasping—far outperforming a naïve RGB or depth-only approach.
+The perception system stands out because it pairs a modern, high-accuracy YOLO detector for dice with a geometry-aware method for cup localisation that works reliably without depth sensing. A simple baseline might threshold colours or rely on RealSense depth, but both approaches are very sensitive to shadows, reflections and depth noise, especially on cylindrical objects like the cup.
+
+Our system instead uses a YOLO model trained specifically on our board, providing stable dice detection, rotation estimation and confidence scoring under varied lighting. For the cup, we avoid depth noise entirely. A colour mask isolates the rim, a rotated bounding box is fitted, and the known footprint of the cup is applied to stabilise the centroid. This geometric projection corrects the lateral bias caused by angled camera views and produces a stable world-frame pose for grasping, clearly outperforming RGB or depth-only methods.
 
 ### Brain Node: Multi-Threaded Closed-Loop Control vs. Sequential Open-Loop Logic
-The Brain node’s architecture is another major improvement over a naïve sequential controller. A simple baseline implementation would process perception, plan, and execute motions in strict sequence on a single thread, leading to stale detections, unresponsive callbacks, and deadlocks in ROS2. Our Brain node instead uses a MultiThreadedExecutor with ReentrantCallbackGroups and event-based motion synchronisation. This allows perception to run continuously in parallel with robot execution, enabling a semi-closed-loop control strategy where object poses are always fresh until the moment a deterministic motion begins. By freezing poses only during a committed manoeuvre, the system avoids mid-trajectory jitter while still benefiting from real-time feedback at all other times. This design yields far more robust, predictable behaviour than the naïve approach, which either freezes perception too early or constantly injects noise into the motion pipeline.
+The Brain node’s architecture is a major improvement over a basic sequential controller. A simple baseline would process perception, planning and motion one step at a time on a single thread, which often leads to stale detections, unresponsive callbacks and ROS2 deadlocks.
+
+Our Brain node instead uses a MultiThreadedExecutor with ReentrantCallbackGroups and event-based motion synchronisation. This lets perception run continuously in parallel with robot execution, creating a semi-closed-loop setup where object poses remain fresh until a deterministic motion begins. By freezing poses only during a committed manoeuvre, the system avoids mid-trajectory jitter while still taking advantage of real-time feedback at all other times.
+
+This design produces far more stable and predictable behaviour than a simple sequential pipeline, which either locks perception too early or continuously injects noise into the motion process.
 
 ### Linear Gripper – Self-Centring Mechanism vs. Standard Parallel Gripper
-The custom linear gripper introduces a mechanical advantage that would not be possible with a naïve off-the-shelf parallel gripper. Typical grippers rely on precise approach alignment and have limited tolerance for perception error. In contrast, our rack-and-pinion linear mechanism naturally self-centres objects as the fingers close, dramatically improving the robustness of dice and cup pickups. This mechanical design compensates for small localisation errors, eliminates the need for complex finger-alignment planning, and provides consistent gripping force across the entire range. Combined with the Teensy-driven servo controller, the gripper achieves reliable, repeatable performance without requiring high-end hardware—something a standard gripper cannot match.
+Our rack-and-pinion linear mechanism naturally self-centres objects as the fingers close, dramatically improving the robustness of dice and cup pickups. This mechanical design compensates for small localisation errors, eliminates the need for complex finger-alignment planning, and provides consistent gripping force across the entire range. Combined with the Teensy-driven servo controller, the gripper achieves reliable, repeatable performance without requiring high-end hardware.
 
 ### Result
-Together, these innovations in perception, planning, control, and hardware yield a system that performs significantly better than a naïve baseline. The robot achieved 76/80 successful motions across 8 game cycles, maintained sub-millimetre dice pickup accuracy (~0.75 mm), produced random and transparent dice outcomes, and completed each round in approximately 90 seconds with perception updates consistently under one second. These results demonstrate that the system is not only functional, but highly reliable, efficient, and well-engineered for real-world gameplay.
+Together, these improvements in perception, planning, control and hardware create a system that performs far better than a simple baseline. The robot achieved 76 out of 80 successful motions across eight game cycles, maintained sub-millimetre dice pickup accuracy (about 0.75 mm), produced random and transparent dice outcomes, and completed each round in roughly 90 seconds with perception updates consistently under one second. These results show that the system is not only functional, but highly reliable, efficient and well-engineered for real gameplay.
 
 ---
 
@@ -1498,8 +1515,8 @@ This project builds on several open-source tools, documentation sources and prio
 
 We would like to acknowledge the people who contributed guidance, support and technical insights throughout the development of this project:
 
-- **Alex Cronin** — For his support throughout the term and for providing valuable feedback on key architectural decisions.
-- **David Nie** — For his ur10 repository and the many guides and resources he produced throughout the term, which informed our project structure and MoveIt setup.
+- **Alex Cronin** for his support throughout the term and for providing valuable feedback on key architectural decisions.
+- **David Nie** for his ur10 repository and the many guides and resources he produced throughout the term, which informed our project structure and MoveIt setup.
 - **Abdul Shahzeb (z5311131)** For his assistance in debugging our Cartesian path planning issues. (Group M14-3)
 
 We are grateful for their contributions, which helped improve both the design and reliability of our system.
