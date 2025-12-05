@@ -80,6 +80,7 @@ The system follows a closed-loop pipeline that connects perception, decision-mak
 ## 3.2 Package-Level Architecture
 
 ![Package Architecture](docs/diagrams/package_architecture.png)
+This diagram summarises the high-level interactions between all ROS2 packages in the system.
 
 
 ## 3.3 Behaviour Tree / State Machine
@@ -851,13 +852,21 @@ This view makes it easy to verify that:
 ---
 
 ## 4.2 Custom End-Effector
-![End-Effector Render](docs/media/gripper_iso.png)
-*Render of Fully Assembled Gripper*
 
 The end effector is a linear gripper designed to reliably manipulate both the dice and the cup. The gripper is actuated using a rack-and-pinion mechanism, with a central pinion gear driving two opposing, gear-profiled gripper fingers that function as linear racks. This configuration ensures symmetric finger motion and consistent gripping force.
 
-![End-Effector Render](docs/gripper_side_exploded.png)
-*Render of Exploded Gripper Assembly*
+<div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
+  <div style="text-align: center;">
+    <img src="docs/media/gripper_iso.png" alt="Gripper ISO" style="height: 260px;">
+    <p><em>Render of Fully Assembled Gripper</em></p>
+  </div>
+
+  <div style="text-align: center;">
+    <img src="docs/gripper_side_exploded.png" alt="Exploded Gripper" style="height: 260px;">
+    <p><em>Render of Exploded Gripper Assembly</em></p>
+  </div>
+</div>
+
 
 A key advantage of the linear gripper design is its passive self-centring behaviour. As long as the object lies between the open fingers, the closing motion naturally guides it toward the centre of the gripper. This makes the system highly tolerant to positional misalignment between the gripper and the object, improving robustness, repeatability, and overall reliability during operation.
 
