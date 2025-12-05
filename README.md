@@ -104,7 +104,7 @@ The robot now moves to each die, picking it up and placing it back in the cup, b
 
 above is a sped up video showing the system performing 1 round of gameplay.  
 
-### 2.3.2 Presentation day Video
+### 2.3.2 Presentation Day Video
 
 [![Watch the Demo](https://img.youtube.com/vi/GC9QNMmfosw/hqdefault.jpg)](https://youtu.be/GC9QNMmfosw)
 
