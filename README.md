@@ -1397,7 +1397,7 @@ A key novelty of this project is the range of vision techniques used together. M
 The CV pipeline combines:
 
 - **ArUco board localisation** to define a stable world coordinate system with a homography warp that gives 1 px to 1 mm accuracy.
-- **YOLO dice detection** trained specifically on our board, with rotation estimation and confidence filtering.
+- **YOLO dice detection** trained on an open source dice dataset, with rotation estimation and confidence filtering.
 - **Geometry based cup localisation** using colour masks, contour analysis, rotated bounding boxes and known object dimensions to avoid depth noise issues.
 - **Chip and player detection** using HSV masks, pixel area heuristics, solidity checks and zone based reasoning.
 - **Pixel to board to world projection** so all detections feed directly into the planner with consistent TF geometry.
