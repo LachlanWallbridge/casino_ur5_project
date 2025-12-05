@@ -1384,8 +1384,18 @@ Stronger colour masking for chip detection, and retraining the YOLO model on our
 
 ## 8.3 Project Novelty
 
-> TODO: What makes your approach distinctive or effective compared to a naive baseline.
+<!-- > TODO: What makes your approach distinctive or effective compared to a naive baseline. -->
+### Computer Vision: YOLO Dice Detector & Novel Cup Localisation
+The perception system is distinctive because it combines a modern, high-accuracy YOLO detector for dice classification with a geometry-aware method for cup localisation that works reliably even without depth sensing. A naïve baseline would simply threshold colours or rely on RealSense depth to find objects—an approach highly sensitive to shadows, specular highlights, and depth noise, especially on cylindrical objects like the cup. Instead, our system uses a YOLO model trained specifically for dice on our board, providing robust detection, rotation estimation, and confidence tracking under varied lighting. For the cup, we avoid noisy depth altogether and instead reconstruct the cup base using a clever geometric projection: the colour mask identifies the visible rim, a rotated bounding box is fitted, and the known footprint dimensions of the cup are enforced to stabilise the centroid. This method corrects the large lateral biases normally caused by an angled camera view, producing a stable world-frame pose suitable for grasping—far outperforming a naïve RGB or depth-only approach.
 
+### Brain Node: Multi-Threaded Closed-Loop Control vs. Sequential Open-Loop Logic
+The Brain node’s architecture is another major improvement over a naïve sequential controller. A simple baseline implementation would process perception, plan, and execute motions in strict sequence on a single thread, leading to stale detections, unresponsive callbacks, and deadlocks in ROS2. Our Brain node instead uses a MultiThreadedExecutor with ReentrantCallbackGroups and event-based motion synchronisation. This allows perception to run continuously in parallel with robot execution, enabling a semi-closed-loop control strategy where object poses are always fresh until the moment a deterministic motion begins. By freezing poses only during a committed manoeuvre, the system avoids mid-trajectory jitter while still benefiting from real-time feedback at all other times. This design yields far more robust, predictable behaviour than the naïve approach, which either freezes perception too early or constantly injects noise into the motion pipeline.
+
+### Linear Gripper – Self-Centring Mechanism vs. Standard Parallel Gripper
+The custom linear gripper introduces a mechanical advantage that would not be possible with a naïve off-the-shelf parallel gripper. Typical grippers rely on precise approach alignment and have limited tolerance for perception error. In contrast, our rack-and-pinion linear mechanism naturally self-centres objects as the fingers close, dramatically improving the robustness of dice and cup pickups. This mechanical design compensates for small localisation errors, eliminates the need for complex finger-alignment planning, and provides consistent gripping force across the entire range. Combined with the Teensy-driven servo controller, the gripper achieves reliable, repeatable performance without requiring high-end hardware—something a standard gripper cannot match.
+
+### Result
+Together, these innovations in perception, planning, control, and hardware yield a system that performs significantly better than a naïve baseline. The robot achieved 76/80 successful motions across 8 game cycles, maintained sub-millimetre dice pickup accuracy (~0.75 mm), produced random and transparent dice outcomes, and completed each round in approximately 90 seconds with perception updates consistently under one second. These results demonstrate that the system is not only functional, but highly reliable, efficient, and well-engineered for real-world gameplay.
 
 ---
 
