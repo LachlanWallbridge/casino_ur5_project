@@ -116,7 +116,7 @@ This diagram summarises the high-level interactions between all ROS2 packages in
 | Field | Type | Description |
 |-------|--------|-------------|
 | `x, y, width, height` | `int32` | 2D pixel bounding box of the die |
-| `dice_number` | `int32` | Detected die face value (1–6) |
+| `dice_number` | `int32` | Detected die face value (1-6) |
 | `confidence` | `float32` | YOLO detection confidence |
 | `pose` | `geometry_msgs/Pose` | Die pose in the world frame |
 
@@ -152,7 +152,7 @@ This diagram summarises the high-level interactions between all ROS2 packages in
 | Field | Type | Description |
 |-------|--------|-------------|
 | `player_id` | `string` | Logical identifier (ArUco ID) |
-| `position` | `int32` | Table position (1–3) |
+| `position` | `int32` | Table position (1-3) |
 | `bet_is_odd` | `bool` | `true` = odd, `false` = even |
 | `bet_colors` | `string[]` | Chip colours |
 | `bet_x`, `bet_y` | `int32[]` | Chip centroids (pixels) |
@@ -387,7 +387,7 @@ The dice detection pipeline operates on the **rectified, top‑down board image*
 #### Purpose in the system
 
 - Detect all dice visible on the board.
-- Classify each die’s face value (1–6).
+- Classify each die’s face value (1-6).
 - Estimate the die’s in‑plane rotation (yaw).
 - Convert pixel positions into **board-frame** and **world-frame** coordinates.
 - Publish structured detections and visual markers used by the robot and UI.
@@ -725,7 +725,7 @@ The player detection pipeline is responsible for mapping physical players and th
 
 #### Role in the system
 
-- Detect which player positions (1–3) are currently active using ArUco markers.
+- Detect which player positions (1-3) are currently active using ArUco markers.
 - Segment and classify coloured chips in the betting area.
 - Assign chips to players based on their horizontal zone.
 - Publish a `Players` message containing chip locations, colours and diameters for each player.
@@ -778,7 +778,7 @@ Players are identified using ArUco markers placed near each player’s seat:
 - The node runs ArUco detection (`DICT_4X4_250`) on the cropped player region.
 - For each detected marker:
   - The marker centre is converted back into full-image coordinates using the crop offsets.
-  - The x-position is compared to the pre-defined zone bounds to determine which of the three positions (1–3) this marker belongs to.
+  - The x-position is compared to the pre-defined zone bounds to determine which of the three positions (1-3) this marker belongs to.
   - The marker centre is converted to metric board coordinates using `pixel_to_board_coords(...)`.
   - A `Player` message is created with:
     - `player_id` set to the numeric ArUco ID.
@@ -806,7 +806,7 @@ After players are located, the node looks for circular chips within the same pla
 - For each accepted contour:
   - The centre `(cx, cy)` and diameter are computed from the minimum enclosing circle.
   - The global image coordinates are reconstructed using the crop offsets.
-  - The x-position is used to determine which zone (1–3) the chip belongs to.
+  - The x-position is used to determine which zone (1-3) the chip belongs to.
 
 Chips are then assigned to players:
 
@@ -991,11 +991,11 @@ This loop matches the physical behaviour of the system and gives a clear, casino
 
 ![Overall CloseLoop System](docs/diagrams/closeLoopOverall.png)
 
-In this project, the robot operates within a closed-loop perception–action cycle. The vision system continuously observes the board, cup and dice, updating their poses in real time. These measurements flow into the Brain node, which uses them to make decisions and plan motions. The robot then acts on these commands, changes the environment, and the updated scene is observed again. This loop repeats continuously, allowing the system to adapt to changing conditions.
+In this project, the robot operates within a closed-loop perception action cycle. The vision system continuously observes the board, cup and dice, updating their poses in real time. These measurements flow into the Brain node, which uses them to make decisions and plan motions. The robot then acts on these commands, changes the environment, and the updated scene is observed again. This loop repeats continuously, allowing the system to adapt to changing conditions.
 
 During normal operation, old pose estimates are replaced with fresh detections so the robot always works with an accurate view of the world. Once the robot commits to a deterministic action, such as approaching or picking up a dice, pose updates for that object are briefly frozen. This avoids jittery mid-motion corrections that could destabilise the trajectory.
 
-The result is a semi–closed-loop control strategy: real-time feedback drives high-level decisions and target selection, while controlled open-loop execution provides precise and stable manipulation.
+The result is a semi closed-loop control strategy: real-time feedback drives high-level decisions and target selection, while controlled open-loop execution provides precise and stable manipulation.
 
 ![Dice CloseLoop Pick-and-Place](docs/diagrams/DiceCloseLoop.png)
 
@@ -1404,23 +1404,27 @@ The system could be expanded to handle chip manipulation, enabling automated bet
 
 ## 8.3 Project Novelty
 
-### Computer Vision: YOLO Dice Detector & Novel Cup Localisation
-The perception system stands out because it pairs a modern, high-accuracy YOLO detector for dice with a geometry-aware method for cup localisation that works reliably without depth sensing. A simple baseline might threshold colours or rely on RealSense depth, but both approaches are very sensitive to shadows, reflections and depth noise, especially on cylindrical objects like the cup.
+### Diverse Computer Vision Pipeline
+A key novelty of this project is the range of vision techniques used together. Many student systems rely on a single method such as YOLO for everything or simple colour masking. Our approach uses different tools for different problems, resulting in a much more robust perception stack.
 
-Our system instead uses a YOLO model trained specifically on our board, providing stable dice detection, rotation estimation and confidence scoring under varied lighting. For the cup, we avoid depth noise entirely. A colour mask isolates the rim, a rotated bounding box is fitted, and the known footprint of the cup is applied to stabilise the centroid. This geometric projection corrects the lateral bias caused by angled camera views and produces a stable world-frame pose for grasping, clearly outperforming RGB or depth-only methods.
+The CV pipeline combines:
 
-### Brain Node: Multi-Threaded Closed-Loop Control vs. Sequential Open-Loop Logic
-The Brain node’s architecture is a major improvement over a basic sequential controller. A simple baseline would process perception, planning and motion one step at a time on a single thread, which often leads to stale detections, unresponsive callbacks and ROS2 deadlocks.
+- **ArUco board localisation** to define a stable world coordinate system with a homography warp that gives 1 px to 1 mm accuracy.
+- **YOLO dice detection** trained specifically on our board, with rotation estimation and confidence filtering.
+- **Geometry based cup localisation** using colour masks, contour analysis, rotated bounding boxes and known object dimensions to avoid depth noise issues.
+- **Chip and player detection** using HSV masks, pixel area heuristics, solidity checks and zone based reasoning.
+- **Pixel to board to world projection** so all detections feed directly into the planner with consistent TF geometry.
 
-Our Brain node instead uses a MultiThreadedExecutor with ReentrantCallbackGroups and event-based motion synchronisation. This lets perception run continuously in parallel with robot execution, creating a semi-closed-loop setup where object poses remain fresh until a deterministic motion begins. By freezing poses only during a committed manoeuvre, the system avoids mid-trajectory jitter while still taking advantage of real-time feedback at all other times.
+This multi method design shows a clear engineering choice to use the right algorithm for each sub problem. It performs significantly better than any single model or thresholding approach and is a major novelty of the system.
 
-This design produces far more stable and predictable behaviour than a simple sequential pipeline, which either locks perception too early or continuously injects noise into the motion process.
+### Brain Node: Threaded Closed Loop Control
+The Brain node improves on a simple sequential pipeline by using a MultiThreadedExecutor with reentrant callback groups. Perception runs continuously while robot motion executes, and poses are only frozen during a committed action. This avoids stale data, prevents blocking and creates smooth closed loop behaviour.
 
-### Linear Gripper – Self-Centring Mechanism vs. Standard Parallel Gripper
-Our rack-and-pinion linear mechanism naturally self-centres objects as the fingers close, dramatically improving the robustness of dice and cup pickups. This mechanical design compensates for small localisation errors, eliminates the need for complex finger-alignment planning, and provides consistent gripping force across the entire range. Combined with the Teensy-driven servo controller, the gripper achieves reliable, repeatable performance without requiring high-end hardware.
+### Linear Gripper with Self Centring
+The rack and pinion mechanism naturally self centres dice and the cup as the jaws close. This reduces the need for perfect pose accuracy and makes grasping more forgiving. Combined with the Teensy servo controller, the gripper provides consistent reliable performance without expensive hardware.
 
-### Result
-Together, these improvements in perception, planning, control and hardware create a system that performs far better than a simple baseline. The robot achieved 76 out of 80 successful motions across eight game cycles, maintained sub-millimetre dice pickup accuracy (about 0.75 mm), produced random and transparent dice outcomes, and completed each round in roughly 90 seconds with perception updates consistently under one second. These results show that the system is not only functional, but highly reliable, efficient and well-engineered for real gameplay.
+### Web Dashboard: Real Time ROS Integrated UI
+The dashboard adds novelty by providing a real time, casino style interface built on rosbridge. It streams players, bets, dice results and round outcomes directly from ROS topics. This gives users clear feedback without using RViz or ROS tools and mirrors the internal state machine in a clean interactive way. The front end is tightly coupled to the perception and Brain nodes, presenting a polished user experience.
 
 ---
 
